@@ -108,12 +108,21 @@ If a task touches any of the above, read the decision file before designing.
 
 ---
 
+## Open questions and decisions
+
+We track unresolved questions and the decisions that close them out:
+
+- **`docs/open-questions.md`** - live and historical open questions, IDed `Q-NNN`. Resolved questions stay there with a strikethrough heading and a "Resolved by" link to the deciding `SKL-NNN`.
+- **`docs/decisions/`** - one file per decision. Local decisions use the `SKL-NNN` prefix; mirrored parent-project decisions keep their original `D-NNN`. Each decision file names the `Q-NNN` it resolves.
+
+When you settle an open question in conversation or PR review, write the decision file in `docs/decisions/SKL-NNN-<slug>.md` (one page, Question / Decision / Rationale / What this constrains / See also) and update the question entry in `open-questions.md` with the strikethrough and link. Decisions and questions reference each other forever - the audit trail is the point.
+
 ## When in doubt
 
 1. Read the relevant `docs/spec/<area>.md` file. It is the spec.
-2. Check `docs/decisions/` to see whether the question is already settled.
+2. Check `docs/decisions/` to see whether the question is already settled. Glance at `docs/open-questions.md` for questions in flight.
 3. Cross-reference the parent project's `ai-skills-lib/analysis/` for full historical context.
-4. If still unclear, **ask the user** rather than picking a direction.
+4. If still unclear, **ask the user** rather than picking a direction. Capture the answer as a new entry in `docs/open-questions.md` and (once settled) a decision file.
 
 ---
 

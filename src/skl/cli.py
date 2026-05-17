@@ -20,9 +20,20 @@ from skl.init import (
     init_repo,
 )
 from skl.shared import sync_global, sync_repo_scoped
-from skl.validate import CheckResult, ValidationReport, exit_code, validate_repo
+from skl.validate import (
+    CheckResult,
+    ValidationReport,
+    check_compatibility_or_message,
+    exit_code,
+    validate_repo,
+)
 
 SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
+
+# Subcommands exempt from the global `skl_version` compatibility guard. See
+# SKL-003 in docs/decisions/ for the rationale; revisit edge cases via Q-004
+# in docs/open-questions.md.
+COMPAT_GUARD_SKIP: frozenset[str] = frozenset({"init", "validate"})
 
 
 @click.group(
@@ -30,8 +41,27 @@ SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
     help="Skill build and multi-platform deployment tool.",
 )
 @click.version_option(version=__version__, prog_name="skl")
-def main() -> None:
-    """skl CLI entry point."""
+@click.pass_context
+def main(ctx: click.Context) -> None:
+    """skl CLI entry point.
+
+    Runs the global compatibility guard (per docs/spec/infrastructure.md
+    §Versioning) before any subcommand dispatches, unless that subcommand
+    is in :data:`COMPAT_GUARD_SKIP`.
+    """
+    if ctx.invoked_subcommand is None or ctx.invoked_subcommand in COMPAT_GUARD_SKIP:
+        return
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        return
+    message = check_compatibility_or_message(repo_root)
+    if message is not None:
+        click.echo(
+            f"compatibility check failed: {message}\n"
+            "(skip with `skl validate` to see the full report).",
+            err=True,
+        )
+        ctx.exit(4)
 
 
 @main.command()
@@ -90,10 +120,9 @@ def validate(skill: str | None, all_: bool) -> None:
     listed in the report as skipped until the matching scaffolding lands.
     """
     if skill or all_:
-        click.echo(
-            "note: per-skill flags are accepted but not yet wired up; "
-            "running manifest-level checks only.",
-            err=True,
+        raise NotImplementedError(
+            "per-skill validation flags (`--skill`, `--all`) are not yet implemented. "
+            f"{SPEC_REFERENCE}"
         )
 
     repo_root = find_skill_repo_root(Path.cwd())
