@@ -20,6 +20,7 @@ from skl.init import (
     init_repo,
 )
 from skl.shared import sync_global, sync_repo_scoped
+from skl.validate import CheckResult, ValidationReport, exit_code, validate_repo
 
 SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
 
@@ -75,10 +76,72 @@ def init(name: str, shared_kit_source: str, shared_kit_version: str, no_git: boo
 
 
 @main.command()
-@click.option("--all", "all_", is_flag=True, help="Validate every skill in the repo.")
-def validate(all_: bool) -> None:
-    """Validate frontmatter, body, knowledge contracts, references and shared-kit drift."""
-    raise NotImplementedError(f"skl validate is not implemented yet. {SPEC_REFERENCE}")
+@click.option("--skill", help="(deferred) Validate a specific skill by kebab name.")
+@click.option(
+    "--all",
+    "all_",
+    is_flag=True,
+    help="(deferred) Validate every skill in the repo.",
+)
+def validate(skill: str | None, all_: bool) -> None:
+    """Validate manifest schema, shared-kit drift and skl compatibility.
+
+    Frontmatter / body / knowledge-contract / cross-repo / values checks are
+    listed in the report as skipped until the matching scaffolding lands.
+    """
+    if skill or all_:
+        click.echo(
+            "note: per-skill flags are accepted but not yet wired up; "
+            "running manifest-level checks only.",
+            err=True,
+        )
+
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        raise click.ClickException("not inside a skill-host repo")
+
+    report = validate_repo(repo_root)
+    _print_validation_report(report)
+    code = exit_code(report)
+    if code:
+        raise SystemExit(code)
+
+
+def _print_validation_report(report: ValidationReport) -> None:
+    """Render a ValidationReport to stderr in a stable, scannable format."""
+    for result in report.results:
+        _print_check_result(result)
+    summary = _validation_summary(report)
+    click.echo(summary, err=True)
+
+
+def _print_check_result(result: CheckResult) -> None:
+    if result.skipped:
+        click.echo(f"  skip   {result.name}: {result.skip_reason}", err=True)
+        return
+    if result.errors:
+        click.echo(f"  FAIL   {result.name}", err=True)
+        for err in result.errors:
+            click.echo(f"           error: {err}", err=True)
+        for warn in result.warnings:
+            click.echo(f"           warn:  {warn}", err=True)
+        return
+    if result.warnings:
+        click.echo(f"  warn   {result.name}", err=True)
+        for warn in result.warnings:
+            click.echo(f"           warn:  {warn}", err=True)
+        return
+    click.echo(f"  ok     {result.name}", err=True)
+
+
+def _validation_summary(report: ValidationReport) -> str:
+    if report.compatibility_failed:
+        return "validation failed: skl_version incompatible (exit 4)"
+    if report.has_errors:
+        return "validation failed (exit 1)"
+    if report.has_warnings:
+        return "validation ok (with warnings)"
+    return "validation ok"
 
 
 @main.command()

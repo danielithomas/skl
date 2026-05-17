@@ -23,6 +23,8 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1",
+    "jsonschema>=4.21",
+    "packaging>=24.0",
     "ruamel.yaml>=0.18",
 ]
 
