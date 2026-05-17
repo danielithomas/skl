@@ -74,6 +74,7 @@ def _fetch_and_copy(source: str, version: str, target: Path) -> tuple[str, str]:
     case it is the highest semver tag in the cloned repo.
     """
     url = _normalise_source(source)
+    local = _is_local_path(source)
 
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
@@ -86,16 +87,13 @@ def _fetch_and_copy(source: str, version: str, target: Path) -> tuple[str, str]:
                 raise RuntimeError(f"shared kit at {source} has no tags; cannot resolve 'latest'")
             _run_git("-C", str(kit_clone), "checkout", "--quiet", resolved_version)
         else:
-            _run_git(
-                "clone",
-                "--quiet",
-                "--depth",
-                "1",
-                "--branch",
-                version,
-                url,
-                str(kit_clone),
-            )
+            clone_args = ["clone", "--quiet"]
+            # `git clone --depth N` against a local path warns and ignores --depth;
+            # skip the flag when we know the source is local.
+            if not local:
+                clone_args += ["--depth", "1"]
+            clone_args += ["--branch", version, url, str(kit_clone)]
+            _run_git(*clone_args)
             resolved_version = version
 
         full_sha = _run_git_capture("-C", str(kit_clone), "rev-parse", "HEAD")
@@ -106,17 +104,33 @@ def _fetch_and_copy(source: str, version: str, target: Path) -> tuple[str, str]:
     return resolved_version, short_sha
 
 
+_URL_SCHEME_PREFIXES = ("http://", "https://", "git@", "git://", "ssh://")
+
+
 def _normalise_source(source: str) -> str:
     """Convert a ``github.com/<org>/<repo>`` shorthand to a clone URL.
 
     Accepts the spec's shorthand and any well-formed git URL untouched.
     """
-    if source.startswith(("http://", "https://", "git@", "git://", "ssh://")):
+    if source.startswith(_URL_SCHEME_PREFIXES):
         return source
     if source.startswith("github.com/"):
         return f"https://{source}.git"
     # Could be a local path or an unknown shorthand; pass through.
     return source
+
+
+def _is_local_path(source: str) -> bool:
+    """Whether ``source`` denotes a local filesystem path.
+
+    Used to skip git flags that the local-clone backend ignores (e.g.
+    ``--depth``) so we do not surface spurious warnings to the user.
+    """
+    if source.startswith(_URL_SCHEME_PREFIXES):
+        return False
+    if source.startswith("github.com/"):
+        return False
+    return Path(source).exists()
 
 
 def _latest_tag(repo: Path) -> str | None:
@@ -150,12 +164,23 @@ def _copy_kit_to_target(kit_dir: Path, target: Path, scratch: Path) -> None:
         shutil.copytree(preserved_local, target / "local")
 
 
+# Silence the "Note: switching to <sha> ... detached HEAD" advisory that git
+# prints on `clone --branch <tag>` and `checkout <tag>`. Cosmetic; the calls
+# below still fail loudly via CalledProcessError on real errors.
+_GIT_QUIET_OPTS = ("-c", "advice.detachedHead=false")
+
+
 def _run_git(*args: str) -> None:
     """Run ``git <args>`` with check=True; let CalledProcessError propagate."""
-    subprocess.run(["git", *args], check=True)
+    subprocess.run(["git", *_GIT_QUIET_OPTS, *args], check=True)
 
 
 def _run_git_capture(*args: str) -> str:
     """Run ``git <args>`` capturing stdout. Returns stripped stdout text."""
-    result = subprocess.run(["git", *args], check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", *_GIT_QUIET_OPTS, *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     return result.stdout.strip()

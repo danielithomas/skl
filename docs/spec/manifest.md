@@ -46,7 +46,7 @@ The secrets backend (per D-008) is configured in `_shared/skill.config.yaml`, no
 | `visibility` | enum | One of `public`, `internal`, `restricted`. Drives where the repo can be hosted and who can read it |
 | `skl_version` | semver range | The range of `skl` versions this repo is known to work with. `skl` refuses to run if outside the range (exit 4) |
 | `shared_kit.source` | string | Git URL or `github.com/<org>/<repo>` shorthand for the shared-kit repo |
-| `shared_kit.version` | semver | Pinned shared-kit version |
+| `shared_kit.version` | semver or `"latest"` | Pinned shared-kit version. The literal string `"latest"` is a sentinel that `skl shared sync` resolves to the highest semver tag in the source repo and rewrites in place. See [The `"latest"` sentinel](#the-latest-sentinel) below |
 | `enabled_platforms` | list | Subset of `[copilot-studio, m365, ms-cowork, claude-code, claude-cowork, vscode]` |
 
 ### Optional
@@ -97,6 +97,14 @@ If absent, the following defaults apply:
 | `custodian` | `(none)` |
 | `cross_repo_dependencies` | `[]` |
 | `defaults.output_language` | `en-AU` |
+
+---
+
+## The `"latest"` sentinel
+
+`shared_kit.version` accepts the literal string `"latest"` in addition to a real semver. `skl init` writes `version: "latest"` by default so a freshly scaffolded manifest does not require the user to know which kit tags exist; the first `skl shared sync` resolves the sentinel against the source's git tags (highest semver wins) and rewrites the manifest with the concrete version plus the resolved `pinned_sha`.
+
+A manifest with `version: "latest"` is not yet pinned. Validate / compile / deploy workflows that assume a pinned manifest should treat the sentinel as a pre-sync state and either run `skl shared sync` first or fail with a clear message.
 
 ---
 

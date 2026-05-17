@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- `CLAUDE.md` Working conventions: all YAML access goes through `skl.manifest`; do not import `ruamel.yaml` / `yaml` directly elsewhere.
+- `docs/spec/manifest.md`: documented the `"latest"` sentinel value for `shared_kit.version`, with a "what it means and when sync resolves it" section.
+- `docs/spec/cli.md` §`skl init`: documented the non-fatal sync-failure path - init exits 0 with a stderr warning when the kit fetch fails, so users can scaffold offline / before configuring auth.
+
+### Fixed
+- `skl shared sync`: silence cosmetic git output (`Note: switching to ... detached HEAD`, `warning: --depth is ignored in local clones`). Detached-HEAD advice is suppressed via `-c advice.detachedHead=false`; `--depth 1` is skipped when the source resolves to a local filesystem path.
+
 ### Added
 - `skl shared sync`: fetches the shared kit per D-011. Repo-scoped form reads `shared_kit.source` / `shared_kit.version` from `skill-repo.yaml` (resolving the `"latest"` sentinel against the source's git tags) and writes the kit into `./_shared/`. Global form takes `--source`, `--version`, and `--to`. In both forms: any pre-existing `_shared/local/` overlay survives the sync, the resolved short SHA is recorded as `shared_kit.pinned_sha`, and `_shared/.kit_version` is written.
 - `skl.manifest` module providing ruamel.yaml-backed `load` / `save` / `set_shared_kit_fields` helpers. Round-trip preservation of user-authored comments and formatting.
