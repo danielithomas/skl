@@ -7,9 +7,17 @@ is specified in docs/spec/cli.md; implementation follows.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import click
 
 from skl import __version__
+from skl.init import (
+    DEFAULT_SHARED_KIT_SOURCE,
+    DEFAULT_SHARED_KIT_VERSION,
+    find_skill_repo_root,
+    init_repo,
+)
 
 SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
 
@@ -24,10 +32,44 @@ def main() -> None:
 
 
 @main.command()
-@click.argument("name", required=False)
-def init(name: str | None) -> None:
-    """Scaffold a new skill (inside a skill-host repo) or a new skill-host repo (global)."""
-    raise NotImplementedError(f"skl init is not implemented yet. {SPEC_REFERENCE}")
+@click.argument("name")
+@click.option(
+    "--shared-kit-source",
+    default=DEFAULT_SHARED_KIT_SOURCE,
+    show_default=True,
+    help="Written into shared_kit.source in the new manifest.",
+)
+@click.option(
+    "--shared-kit-version",
+    default=DEFAULT_SHARED_KIT_VERSION,
+    show_default=True,
+    help="Written into shared_kit.version. Resolved by `skl shared sync` when that command lands.",
+)
+@click.option("--no-git", is_flag=True, help="Skip `git init` on the new directory.")
+def init(name: str, shared_kit_source: str, shared_kit_version: str, no_git: bool) -> None:
+    """Scaffold a new skill-host repo (global form) at ./<name>.
+
+    The repo-scoped form (scaffolding a new skill inside an existing repo) is
+    not implemented yet; this command refuses to run from inside a skill-host
+    repo to avoid accidental nesting.
+    """
+    cwd = Path.cwd()
+    if find_skill_repo_root(cwd) is not None:
+        raise click.ClickException(
+            "you are inside an existing skill-host repo; the repo-scoped form of "
+            "`skl init` is not yet implemented. cd out before scaffolding a new repo."
+        )
+    target = cwd / name
+    try:
+        init_repo(
+            target,
+            shared_kit_source=shared_kit_source,
+            shared_kit_version=shared_kit_version,
+            no_git=no_git,
+        )
+    except (ValueError, FileExistsError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"scaffolded skill-host repo at {target}")
 
 
 @main.command()
