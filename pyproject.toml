@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1",
+    "ruamel.yaml>=0.18",
 ]
 
 [project.optional-dependencies]
