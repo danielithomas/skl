@@ -1,0 +1,165 @@
+"""Top-level CLI for skl.
+
+Only `--version` works at this stage. Every other verb is a placeholder
+that raises NotImplementedError with a pointer to the spec. The CLI surface
+is specified in docs/spec/cli.md; implementation follows.
+"""
+
+from __future__ import annotations
+
+import click
+
+from skl import __version__
+
+SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
+
+
+@click.group(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="Skill build and multi-platform deployment tool.",
+)
+@click.version_option(version=__version__, prog_name="skl")
+def main() -> None:
+    """skl CLI entry point."""
+
+
+@main.command()
+@click.argument("name", required=False)
+def init(name: str | None) -> None:
+    """Scaffold a new skill (inside a skill-host repo) or a new skill-host repo (global)."""
+    raise NotImplementedError(f"skl init is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.option("--all", "all_", is_flag=True, help="Validate every skill in the repo.")
+def validate(all_: bool) -> None:
+    """Validate frontmatter, body, knowledge contracts, references and shared-kit drift."""
+    raise NotImplementedError(f"skl validate is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.option("--all", "all_", is_flag=True, help="Compile every skill in the repo.")
+def compile(all_: bool) -> None:
+    """Compile SKILL.md to enabled platform artefacts under platforms/."""
+    raise NotImplementedError(f"skl compile is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.option("--all", "all_", is_flag=True, help="Check budget for every skill.")
+def budget(all_: bool) -> None:
+    """Report character usage versus per-platform budget (8K for Copilot Studio)."""
+    raise NotImplementedError(f"skl budget is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.option("--all", "all_", is_flag=True, help="Test every skill.")
+@click.option("--mock", is_flag=True, help="Use mocked platform responses.")
+def test(all_: bool, mock: bool) -> None:
+    """Run fixtures against compiled artefacts."""
+    raise NotImplementedError(f"skl test is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+def index() -> None:
+    """Regenerate skills/SKILLS_INDEX.md from the current skill set."""
+    raise NotImplementedError(f"skl index is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.option("--all", "all_", is_flag=True, help="Lint every skill in the repo.")
+@click.option("--fix", is_flag=True, help="Auto-fix where possible.")
+def lint(all_: bool, fix: bool) -> None:
+    """Style enforcement: em-dashes, AU spellings, unresolved tokens, credential-shaped strings."""
+    raise NotImplementedError(f"skl lint is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.option("--skill", required=True, help="Skill kebab name.")
+@click.option("--platform", "platform_", required=True, help="Target platform identifier.")
+def deploy(skill: str, platform_: str) -> None:
+    """Substitute values and copy the compiled artefact to its install location."""
+    raise NotImplementedError(f"skl deploy is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.argument("name")
+@click.option("--in-favour-of", "in_favour_of", help="Replacement skill.")
+def deprecate(name: str, in_favour_of: str | None) -> None:
+    """Mark a skill as deprecated."""
+    raise NotImplementedError(f"skl deprecate is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.command()
+@click.argument("legacy_path", type=click.Path(exists=True))
+def migrate(legacy_path: str) -> None:
+    """Scaffold a SKILL.md draft from a legacy agent file (in-repo only)."""
+    raise NotImplementedError(f"skl migrate is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.group()
+def shared() -> None:
+    """Shared-kit operations."""
+
+
+@shared.command("sync")
+@click.option("--version", "version_", help="Pin a specific shared-kit version.")
+@click.option("--to", "to_", help="Global form: write the kit to this path.")
+def shared_sync(version_: str | None, to_: str | None) -> None:
+    """Fetch the shared kit from ai-skills-shared and write it into _shared/."""
+    raise NotImplementedError(f"skl shared sync is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.group()
+def values() -> None:
+    """Values-file operations."""
+
+
+@values.command("check")
+@click.option("--values-file", "values_file", type=click.Path(), help="Values file to check.")
+def values_check(values_file: str | None) -> None:
+    """Verify all required vars are supplied and reject secret-like keys."""
+    raise NotImplementedError(f"skl values check is not implemented yet. {SPEC_REFERENCE}")
+
+
+@values.command("sync")
+@click.option("--from", "from_", required=True, help="Source path or git URL.")
+@click.option("--profile", help="Named profile within the source.")
+def values_sync(from_: str, profile: str | None) -> None:
+    """Sync a values profile from the sibling private values repo into ./.values/."""
+    raise NotImplementedError(f"skl values sync is not implemented yet. {SPEC_REFERENCE}")
+
+
+@values.command("schema")
+@click.option("--output", type=click.Path(), help="Where to write the generated schema.")
+def values_schema(output: str | None) -> None:
+    """Generate a JSON Schema from the union of all enabled skills' variables."""
+    raise NotImplementedError(f"skl values schema is not implemented yet. {SPEC_REFERENCE}")
+
+
+@main.group()
+def secrets() -> None:
+    """Secrets-backend operations."""
+
+
+@secrets.command("get")
+@click.argument("key")
+def secrets_get(key: str) -> None:
+    """Resolve a secret via the configured backend."""
+    raise NotImplementedError(f"skl secrets get is not implemented yet. {SPEC_REFERENCE}")
+
+
+@secrets.command("set")
+@click.argument("key")
+def secrets_set(key: str) -> None:
+    """Write a secret to the configured backend (where supported)."""
+    raise NotImplementedError(f"skl secrets set is not implemented yet. {SPEC_REFERENCE}")
+
+
+@secrets.command("list")
+def secrets_list() -> None:
+    """Enumerate known secret keys without revealing values."""
+    raise NotImplementedError(f"skl secrets list is not implemented yet. {SPEC_REFERENCE}")
+
+
+if __name__ == "__main__":
+    main()
