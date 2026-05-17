@@ -60,6 +60,7 @@ skl/
 
 - **Python 3.11+.** Type hints required on public functions. `from __future__ import annotations` at the top of every module.
 - **Tooling**: `uv` for env / lock / build / publish. `ruff` for lint and format. `pytest` for tests. No `poetry`, no `black`, no `flake8`.
+- **All YAML access goes through `skl.manifest`** (which uses `ruamel.yaml` in round-trip mode to preserve user-authored comments, ordering and formatting across rewrites). Do not import `ruamel.yaml` or `yaml` directly elsewhere in the codebase - extend `skl.manifest` with a new helper if you need a different access pattern.
 - **Australian English** in user-facing strings, help text, errors, docs. `organise`, `realise`, `colour`, `catalogue`, `optimisation`. Currency AUD. Dates `DD MMM YYYY`.
 - **No em-dashes (`—`) or en-dashes (`–`).** Use a hyphen with surrounding spaces (` - `) instead. `skl lint` will eventually enforce this on compiled skill output; manually enforce it in this repo's own docs and strings.
 - **No "as an AI", "I cannot fulfill", "in order to"** in any user-facing output.
