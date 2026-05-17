@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `skl validate`: runs the implemented check families (manifest schema, skl version compatibility, shared-kit drift) and reports the remaining spec checks (frontmatter, body, knowledge-contracts, cross-repo-dependencies, values-declarations) as `skipped` with a clear reason until SKILL.md scaffolding lands. Exit codes match the spec: 0 ok, 1 validation failure, 4 compatibility failure.
+- `skl.schemas` package shipping `skill-repo.schema.json`, a JSON Schema for `skill-repo.yaml` enforcing required fields, kebab `name` pattern, visibility enum, the six known platforms, and structural shape of `shared_kit` / `cross_repo_dependencies[]`.
+- `skl.validate` module exposing `validate_repo(repo_root)` returning a `ValidationReport`, plus `CheckResult` and `exit_code()` helpers. Each check family is a discrete function so future PRs can wire in the deferred checks without restructuring.
+- `jsonschema>=4.21` and `packaging>=24.0` dependencies (jsonschema for manifest + future frontmatter validation; packaging for `skl_version` specifier-set matching).
+
 ### Documentation
 - `CLAUDE.md` Working conventions: all YAML access goes through `skl.manifest`; do not import `ruamel.yaml` / `yaml` directly elsewhere.
 - `docs/spec/manifest.md`: documented the `"latest"` sentinel value for `shared_kit.version`, with a "what it means and when sync resolves it" section.

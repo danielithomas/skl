@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skl.dev/schemas/skill-repo.schema.json",
+  "title": "skill-repo.yaml",
+  "description": "Manifest schema for a skill-host repo. See docs/spec/manifest.md.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "visibility",
+    "skl_version",
+    "shared_kit",
+    "enabled_platforms"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [1]
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": ["public", "internal", "restricted"]
+    },
+    "custodian": {
+      "type": "string"
+    },
+    "skl_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shared_kit": {
+      "type": "object",
+      "required": ["source", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pinned_sha": {
+          "type": "string"
+        }
+      }
+    },
+    "enabled_platforms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "copilot-studio",
+          "m365",
+          "ms-cowork",
+          "claude-code",
+          "claude-cowork",
+          "vscode"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "cross_repo_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "pinned_sha"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}$"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pinned_sha": {
+            "type": "string",
+            "minLength": 1
+          },
+          "used_for": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "output_language": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
