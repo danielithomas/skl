@@ -10,10 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Global `skl_version` compatibility guard at the CLI entry point (`skl.cli.main`). Every invocation from inside a skill-host repo runs the guard before the subcommand dispatches; failures exit 4 per the spec. Skip list: `init`, `validate`. See [SKL-003](docs/decisions/SKL-003-global-compatibility-guard.md).
+- `skl.validate.check_compatibility_or_message(repo_root)` - canonical entry point used by both the global guard and `skl validate`'s own Check 8. Lenient on parse failures; lets `skl validate` surface the underlying issue.
+- `docs/open-questions.md` - live log of unresolved questions with `Q-NNN` IDs. Resolved questions stay forever with a strikethrough heading and a link to the deciding `SKL-NNN`.
+- `docs/decisions/SKL-001` (drift is warning), `SKL-002` (unimplemented flags raise NIE), `SKL-003` (global compatibility guard). New `SKL-NNN` prefix for repo-local decisions; existing parent-mirrored decisions keep their `D-NNN` prefix.
 - `skl validate`: runs the implemented check families (manifest schema, skl version compatibility, shared-kit drift) and reports the remaining spec checks (frontmatter, body, knowledge-contracts, cross-repo-dependencies, values-declarations) as `skipped` with a clear reason until SKILL.md scaffolding lands. Exit codes match the spec: 0 ok, 1 validation failure, 4 compatibility failure.
 - `skl.schemas` package shipping `skill-repo.schema.json`, a JSON Schema for `skill-repo.yaml` enforcing required fields, kebab `name` pattern, visibility enum, the six known platforms, and structural shape of `shared_kit` / `cross_repo_dependencies[]`.
 - `skl.validate` module exposing `validate_repo(repo_root)` returning a `ValidationReport`, plus `CheckResult` and `exit_code()` helpers. Each check family is a discrete function so future PRs can wire in the deferred checks without restructuring.
 - `jsonschema>=4.21` and `packaging>=24.0` dependencies (jsonschema for manifest + future frontmatter validation; packaging for `skl_version` specifier-set matching).
+
+### Changed
+- `skl validate --skill <name>` / `--all` now raise `NotImplementedError` instead of silently accepting the flag with a stderr note. Matches the convention used by every unbuilt verb. See [SKL-002](docs/decisions/SKL-002-unimplemented-flags-error.md).
+- `docs/spec/infrastructure.md` §Skill-host repo compatibility: documented the exempt subcommands (`init`, `validate`) with a pointer to SKL-003.
+- `docs/decisions/README.md`: distinguished `D-NNN` (parent-mirrored) from `SKL-NNN` (local) prefixes; pointed the process discussion at the new open-questions workflow.
+- `CLAUDE.md`: added an "Open questions and decisions" section describing the `Q-NNN` / `SKL-NNN` workflow.
 
 ### Documentation
 - `CLAUDE.md` Working conventions: all YAML access goes through `skl.manifest`; do not import `ruamel.yaml` / `yaml` directly elsewhere.

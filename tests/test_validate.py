@@ -346,7 +346,33 @@ def test_cli_validate_exit_four_on_compat_failure(
     _write_manifest(tmp_path / "skill-repo.yaml", _minimal_valid_manifest(">=99.0,<100.0"))
     monkeypatch.chdir(tmp_path)
 
+    # `validate` is in COMPAT_GUARD_SKIP per SKL-003, so the global guard
+    # does not short-circuit here - the compat failure surfaces via check 8.
     result = runner.invoke(main, ["validate"])
 
     assert result.exit_code == 4, result.output
     assert "skl_version incompatible" in result.output
+
+
+def test_cli_validate_skill_flag_raises_not_implemented(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path / "skill-repo.yaml", _minimal_valid_manifest())
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(main, ["validate", "--skill", "casey"], standalone_mode=False)
+
+    assert isinstance(result.exception, NotImplementedError)
+    assert "not yet implemented" in str(result.exception)
+
+
+def test_cli_validate_all_flag_raises_not_implemented(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_manifest(tmp_path / "skill-repo.yaml", _minimal_valid_manifest())
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(main, ["validate", "--all"], standalone_mode=False)
+
+    assert isinstance(result.exception, NotImplementedError)
+    assert "not yet implemented" in str(result.exception)
