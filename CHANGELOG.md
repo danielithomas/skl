@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README opens with the `skl` vs `skillctl` distinction (per D-010 follow-up #8).
 - CI workflow on push / PR: ruff lint + format check, pytest, CLI smoke.
 
+### Changed
+- `cli.md` §`skl init` global form: `--shared-kit-source` and `--shared-kit-version` flags added with documented defaults, order of operations made explicit (write manifest, then sync), so `skl init` no longer has a chicken-and-egg dependency on a manifest that does not yet exist.
+- `infrastructure.md`: advisory concurrency lock renamed `.skl.lock` → `.skl-process.lock` to remove the one-letter-apart collision with `skl.lock` (cross-repo deps lock).
+- `manifest.md`: `secrets.backend` override removed; per-machine overrides belong in `_shared/local/skill.config.yaml` per D-008 + D-011, not in the committed manifest.
+- `decisions/README.md`: softened the "D-001 to D-006 live in the parent project only" claim and added a "Parent decisions referenced by this spec" table covering D-001 / D-002 / D-004 / D-006.
+- `D-011`: clarified `pinned_sha` is auto-written by `skl shared sync` and must not be hand-edited.
+- `README.md` Quickstart: dropped the standalone `skl shared sync` call since `skl init` (global) now explicitly runs it.
+
 ### Status
 - Pre-v0.1. The CLI surface is wired; verbs raise `NotImplementedError` with a pointer to the spec.
 

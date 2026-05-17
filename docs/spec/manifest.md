@@ -29,9 +29,9 @@ cross_repo_dependencies: []
   #   used_for: MAS sub-agents
 defaults:
   output_language: en-AU                   # surfaced into compiled skills via shared kit
-secrets:
-  backend: keyring                         # per D-008; can be overridden per machine
 ```
+
+The secrets backend (per D-008) is configured in `_shared/skill.config.yaml`, not here. Per-machine overrides belong in `_shared/local/skill.config.yaml`.
 
 ---
 
@@ -58,7 +58,6 @@ secrets:
 | `shared_kit.pinned_sha` | string | Resolved commit SHA. Auto-written by `skl shared sync`; do not hand-edit |
 | `cross_repo_dependencies[]` | list of objects | See below |
 | `defaults` | map | Repo-wide defaults inherited by skills. Currently only `output_language` |
-| `secrets.backend` | enum | Override the shared-kit default secrets backend. Useful for per-machine overrides |
 
 ### `cross_repo_dependencies[]`
 
@@ -85,7 +84,6 @@ cross_repo_dependencies:
 5. `shared_kit.source` is fetchable; `shared_kit.version` is an available tag.
 6. `enabled_platforms` is a subset of known platforms (see [`compilation.md`](./compilation.md)).
 7. `cross_repo_dependencies[]` each resolve to fetchable repos at the pinned ref.
-8. `secrets.backend` (if set) is one of the supported backends.
 
 ---
 
@@ -99,7 +97,6 @@ If absent, the following defaults apply:
 | `custodian` | `(none)` |
 | `cross_repo_dependencies` | `[]` |
 | `defaults.output_language` | `en-AU` |
-| `secrets.backend` | inherited from `_shared/skill.config.yaml` |
 
 ---
 
