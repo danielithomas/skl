@@ -62,7 +62,7 @@ Order of operations:
 1. Create a directory named `<repo-name>`.
 2. Write `skill-repo.yaml` with sensible defaults (visibility `internal`, current `skl` version range, no enabled platforms yet, `shared_kit.source` and `shared_kit.version` taken from the flags or their defaults).
 3. Write `README.md`, `LICENSE`, `.gitignore` and create an empty `skills/` directory.
-4. Run `skl shared sync` internally against the new manifest so the kit lands at `./_shared/` and the resolved `pinned_sha` is written back into the manifest.
+4. Run `skl shared sync` internally against the new manifest so the kit lands at `./_shared/` and the resolved `pinned_sha` is written back into the manifest. **If sync fails** (source unreachable, missing tag, auth required, network down), `skl init` logs a warning to stderr and continues with exit 0; the scaffolded files are still on disk and the user is expected to re-run `skl shared sync` once the source is reachable. This is intentional - it lets the user scaffold offline or before configuring auth to a private kit repo.
 5. Run `git init` unless `--no-git` is passed.
 
 Flags:

@@ -179,6 +179,22 @@ def test_normalise_source(input_source: str, expected: str) -> None:
     assert shared._normalise_source(input_source) == expected
 
 
+def test_is_local_path_detects_existing_directory(tmp_path: Path) -> None:
+    existing = tmp_path / "kit"
+    existing.mkdir()
+    assert shared._is_local_path(str(existing)) is True
+
+
+def test_is_local_path_rejects_url_forms() -> None:
+    assert shared._is_local_path("https://github.com/org/repo.git") is False
+    assert shared._is_local_path("github.com/org/repo") is False
+    assert shared._is_local_path("git@github.com:org/repo.git") is False
+
+
+def test_is_local_path_rejects_nonexistent_path(tmp_path: Path) -> None:
+    assert shared._is_local_path(str(tmp_path / "does-not-exist")) is False
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
