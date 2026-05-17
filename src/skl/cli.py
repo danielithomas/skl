@@ -1,12 +1,13 @@
 """Top-level CLI for skl.
 
-Only `--version` works at this stage. Every other verb is a placeholder
-that raises NotImplementedError with a pointer to the spec. The CLI surface
-is specified in docs/spec/cli.md; implementation follows.
+The CLI surface is specified in docs/spec/cli.md. Implemented verbs dispatch
+to the corresponding module under ``src/skl/``; verbs that have not yet been
+built raise ``NotImplementedError`` with a pointer back to the spec.
 """
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import click
@@ -18,6 +19,7 @@ from skl.init import (
     find_skill_repo_root,
     init_repo,
 )
+from skl.shared import sync_global, sync_repo_scoped
 
 SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
 
@@ -144,11 +146,42 @@ def shared() -> None:
 
 
 @shared.command("sync")
-@click.option("--version", "version_", help="Pin a specific shared-kit version.")
-@click.option("--to", "to_", help="Global form: write the kit to this path.")
-def shared_sync(version_: str | None, to_: str | None) -> None:
-    """Fetch the shared kit from ai-skills-shared and write it into _shared/."""
-    raise NotImplementedError(f"skl shared sync is not implemented yet. {SPEC_REFERENCE}")
+@click.option(
+    "--version",
+    "version_",
+    help="Pin or override the shared-kit version. In repo-scoped form, defaults to the manifest value.",
+)
+@click.option(
+    "--source",
+    "source_",
+    help="(global form) Shared-kit source URL or `github.com/<org>/<repo>` shorthand.",
+)
+@click.option(
+    "--to",
+    "to_",
+    type=click.Path(path_type=Path),
+    help="(global form) Write the kit to this path instead of ./_shared/.",
+)
+def shared_sync(version_: str | None, source_: str | None, to_: Path | None) -> None:
+    """Fetch the shared kit and write it into ./_shared/ (or to --to)."""
+    if to_ is not None:
+        if source_ is None or version_ is None:
+            raise click.ClickException("global form (--to) requires both --source and --version")
+        try:
+            resolved_version, sha = sync_global(source=source_, version=version_, target=to_)
+        except (subprocess.CalledProcessError, RuntimeError, ValueError) as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo(f"synced {source_}@{resolved_version} ({sha}) to {to_}")
+        return
+
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        raise click.ClickException("not inside a skill-host repo")
+    try:
+        resolved_version, sha = sync_repo_scoped(repo_root, version=version_)
+    except (subprocess.CalledProcessError, RuntimeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"synced shared kit @ {resolved_version} ({sha}) into {repo_root}/_shared/")
 
 
 @main.group()

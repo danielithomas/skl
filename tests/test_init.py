@@ -29,6 +29,19 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def _stub_shared_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace shared.sync_repo_scoped with a no-op so init tests do not clone.
+
+    Tests that want to exercise the real sync path opt in by overriding this
+    again on a per-test basis.
+    """
+    monkeypatch.setattr(
+        "skl.init.shared.sync_repo_scoped",
+        lambda _repo_root, version=None: ("stub-version", "0000000000ab"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # init_repo: direct function tests
 # ---------------------------------------------------------------------------
@@ -96,13 +109,31 @@ def test_init_repo_rejects_existing_target(tmp_path: Path) -> None:
         init_repo(target, no_git=True)
 
 
-def test_init_repo_warns_when_shared_sync_unimplemented(
+def test_init_repo_reports_successful_shared_sync(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     init_repo(tmp_path / "my-skills", no_git=True)
     captured = capsys.readouterr()
-    assert "skl shared sync" in captured.err
-    assert "not yet implemented" in captured.err
+    assert "fetched shared kit @ stub-version" in captured.err
+
+
+def test_init_repo_warns_when_shared_sync_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def _boom(_repo_root: Path, version: str | None = None) -> tuple[str, str]:
+        raise RuntimeError("upstream unreachable")
+
+    monkeypatch.setattr("skl.init.shared.sync_repo_scoped", _boom)
+
+    init_repo(tmp_path / "my-skills", no_git=True)
+
+    captured = capsys.readouterr()
+    assert "shared sync failed" in captured.err
+    assert "upstream unreachable" in captured.err
+    # Repo still scaffolded despite the sync failure.
+    assert (tmp_path / "my-skills" / "skill-repo.yaml").is_file()
 
 
 # ---------------------------------------------------------------------------

@@ -10,8 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `skl shared sync`: fetches the shared kit per D-011. Repo-scoped form reads `shared_kit.source` / `shared_kit.version` from `skill-repo.yaml` (resolving the `"latest"` sentinel against the source's git tags) and writes the kit into `./_shared/`. Global form takes `--source`, `--version`, and `--to`. In both forms: any pre-existing `_shared/local/` overlay survives the sync, the resolved short SHA is recorded as `shared_kit.pinned_sha`, and `_shared/.kit_version` is written.
+- `skl.manifest` module providing ruamel.yaml-backed `load` / `save` / `set_shared_kit_fields` helpers. Round-trip preservation of user-authored comments and formatting.
+- `skl.shared` module with `sync_repo_scoped`, `sync_global`, source-URL normalisation (`github.com/<org>/<repo>` -> `https://github.com/<org>/<repo>.git`), and latest-tag resolution.
+- `ruamel.yaml>=0.18` dependency.
 - `skl init <name>` global form: scaffolds a new skill-host repo at `./<name>` with `skill-repo.yaml`, `README.md`, `LICENSE`, `.gitignore`, an empty `skills/` directory, and (unless `--no-git`) a `git init`. Accepts `--shared-kit-source` and `--shared-kit-version` flags. Refuses to run from inside an existing skill-host repo (the repo-scoped form is not yet implemented).
 - `skl.init` module exporting `init_repo`, `find_skill_repo_root`, and `compatible_version_range` for reuse by other verbs.
+
+### Changed
+- `skl init` now invokes `skl shared sync` internally (per the spec). If the sync fails (e.g. the source URL is unreachable), the scaffold still succeeds and a stderr warning instructs the user to re-run `skl shared sync` once the source is reachable. Removes the stale "shared sync not yet implemented" warning.
 - Initial scaffold: package metadata, `--version`, click-based CLI surface with stub verbs.
 - `docs/spec/` covering CLI surface, `skill-repo.yaml` manifest, infrastructure, values + secrets, and compilation.
 - `docs/decisions/` covering D-007 (three-tier values), D-008 (secrets separation), D-009 (multi-repo architecture), D-010 (toolkit identity), D-011 (shared kit fetched).

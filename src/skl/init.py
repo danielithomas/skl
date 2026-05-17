@@ -1,10 +1,11 @@
 """Implementation of `skl init` (global form): scaffold a new skill-host repo.
 
-Per docs/spec/cli.md §`skl init` global form. The spec calls for
-`skl shared sync` to be invoked internally after writing the manifest, but
-that command is not yet implemented; this implementation emits a stderr
-warning and leaves `_shared/` un-fetched. `shared_kit.pinned_sha` is omitted
-from the manifest until the first real sync.
+Per docs/spec/cli.md §`skl init` global form. Scaffolds the directory, writes
+the manifest, calls `skl shared sync` to fetch the shared kit, and optionally
+runs `git init`. If the shared-kit fetch fails (e.g. the source URL is not
+reachable, or the user has not configured auth), `init_repo` logs a warning
+to stderr but otherwise succeeds: the user can re-run `skl shared sync` once
+the source is reachable.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from textwrap import dedent
 
-from skl import __version__
+from skl import __version__, shared
 
 DEFAULT_SHARED_KIT_SOURCE = "github.com/danielithomas/ai-skills-shared"
 DEFAULT_SHARED_KIT_VERSION = "latest"
@@ -64,12 +65,7 @@ def init_repo(
     _write_license(target / "LICENSE")
     _write_gitignore(target / ".gitignore")
 
-    print(
-        "warning: `skl shared sync` is not yet implemented; `_shared/` was not "
-        "fetched and `shared_kit.pinned_sha` is absent from the manifest. "
-        "Re-run `skl shared sync` once that command lands.",
-        file=sys.stderr,
-    )
+    _try_shared_sync(target)
 
     if not no_git:
         subprocess.run(
@@ -77,6 +73,28 @@ def init_repo(
             check=True,
             stdout=subprocess.DEVNULL,
         )
+
+
+def _try_shared_sync(target: Path) -> None:
+    """Call shared.sync_repo_scoped, swallowing fetch failures with a clear warning.
+
+    The spec calls for sync to run internally during ``skl init``. We treat a
+    sync failure as a recoverable warning (not a hard error) so the user is
+    left with a usable scaffold they can finish setting up out of band.
+    """
+    try:
+        resolved_version, sha = shared.sync_repo_scoped(target)
+    except (subprocess.CalledProcessError, RuntimeError, ValueError, OSError) as exc:
+        print(
+            f"warning: shared sync failed: {exc}. "
+            f"Repo is scaffolded; run `skl shared sync` once the source is reachable.",
+            file=sys.stderr,
+        )
+        return
+    print(
+        f"fetched shared kit @ {resolved_version} ({sha}) into {target}/_shared/",
+        file=sys.stderr,
+    )
 
 
 def compatible_version_range(version: str = __version__) -> str:
