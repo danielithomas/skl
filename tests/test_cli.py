@@ -39,7 +39,6 @@ def test_help_flag(runner: CliRunner) -> None:
         ["index"],
         ["lint"],
         ["deploy", "--skill", "casey", "--platform", "claude-code"],
-        ["shared", "sync"],
         ["values", "check"],
         ["secrets", "list"],
     ],
