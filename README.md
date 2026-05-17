@@ -59,9 +59,8 @@ uv run skl --version            # smoke test
 ## Quickstart (planned, not yet implemented)
 
 ```bash
-skl init my-skills-repo         # scaffold a new skill-host repo
+skl init my-skills-repo         # scaffold a new skill-host repo (fetches shared kit internally)
 cd my-skills-repo
-skl shared sync                 # fetch the shared kit (style, personas, templates, schemas)
 skl init casey-case-studies     # scaffold a new skill inside the repo
 skl validate                    # check frontmatter, body, knowledge contracts
 skl compile                     # produce platforms/* artefacts

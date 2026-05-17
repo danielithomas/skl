@@ -105,7 +105,7 @@ Credentials are involved at two boundaries:
 
 `skl` commands are single-threaded by default. `skl compile --all` may parallelise per-skill compilation in a future release; for v0.1 it is sequential.
 
-Long-running commands (`shared sync`, `deploy`) acquire an advisory lock on `.skl.lock` in the active repo to prevent concurrent invocations from corrupting the manifest or the `_shared/` copy.
+Long-running commands (`shared sync`, `deploy`) acquire an advisory lock on `.skl-process.lock` in the active repo to prevent concurrent invocations from corrupting the manifest or the `_shared/` copy. Distinct from `skl.lock`, which records resolved cross-repo dependency SHAs (see [`manifest.md`](./manifest.md) §`cross_repo_dependencies[]`).
 
 ---
 

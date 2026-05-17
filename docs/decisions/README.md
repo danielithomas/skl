@@ -2,7 +2,7 @@
 
 These are the decisions that constrain `skl`'s behaviour. Each file is self-contained for readers working in this repo, but the authoritative project-wide record lives in [`ai-skills-lib/analysis/06_decision_log.md`](https://github.com/danielithomas/ai-skills-lib/blob/main/analysis/06_decision_log.md).
 
-The decision IDs (D-007, D-008, etc.) match the parent project's numbering. Decisions D-001 to D-006 are about skill content and authoring conventions; they constrain SKILL.md authors, not the toolkit, so they live in the parent project only.
+The decision IDs (D-007, D-008, etc.) match the parent project's numbering. Decisions D-001 to D-006 are primarily about skill content and authoring conventions and live in the parent project; the spec here references a subset of them because the compiler must respect them at build time. See "Parent decisions referenced by this spec" below.
 
 | ID | Title | What it constrains in `skl` |
 |----|-------|----------------------------|
@@ -11,6 +11,19 @@ The decision IDs (D-007, D-008, etc.) match the parent project's numbering. Deci
 | [D-009](./D-009-multi-repo-architecture.md) | Multi-repo skill architecture | `skl init`, repo discovery, `skill-repo.yaml` manifest |
 | [D-010](./D-010-toolkit-identity.md) | Toolkit extracted to this repo; CLI binary named `skl` | The existence and identity of this repo |
 | [D-011](./D-011-shared-kit-fetched.md) | Shared kit fetched via `skl shared sync` from `ai-skills-shared` | `skl shared sync`, `skl validate` (drift detection), `_shared/` integration |
+
+## Parent decisions referenced by this spec
+
+These decisions live in the parent project. They are not mirrored here because they primarily constrain authoring, but the spec references them where the toolkit must respect them at build time.
+
+| ID | Title | Where `skl` references it |
+|----|-------|---------------------------|
+| D-001 | Compiled `platforms/` artefacts are committed | `cli.md` §`skl compile`; `values-and-secrets.md` (substitution-at-deploy-time preserves D-001) |
+| D-002 | Copilot Studio "live" testing emits a manual-test-pack | `cli.md` §`skl test`; `compilation.md` §`copilot-studio` |
+| D-004 | LLM-graded behavioural tests deferred to v1.1; structural assertions only in v1 | `cli.md` §`skl test` |
+| D-006 | Persona surfacing defaults are platform-specific, driven by `personas.surface_in` | `compilation.md` per-platform table |
+
+Full text in [`ai-skills-lib/analysis/06_decision_log.md`](https://github.com/danielithomas/ai-skills-lib/blob/main/analysis/06_decision_log.md).
 
 ## Process
 

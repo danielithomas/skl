@@ -55,19 +55,27 @@ skl [GLOBAL-OPTIONS] <COMMAND> [COMMAND-OPTIONS]
 
 Scaffold a new skill-host repo (global form) or a new skill inside the active repo (repo-scoped form).
 
-**Global form** - `skl init <repo-name>`
+**Global form** - `skl init <repo-name> [--shared-kit-source <url>] [--shared-kit-version <semver>] [--no-git]`
 
-Creates a directory named `<repo-name>` containing:
-- `skill-repo.yaml` with sensible defaults (visibility `internal`, current `skl` version range, no enabled platforms yet)
-- `README.md`, `LICENSE`, `.gitignore`
-- An empty `skills/` directory
-- A fetched `_shared/` (calls `skl shared sync` internally)
+Order of operations:
 
-The new directory is initialised as a git repository unless `--no-git` is passed.
+1. Create a directory named `<repo-name>`.
+2. Write `skill-repo.yaml` with sensible defaults (visibility `internal`, current `skl` version range, no enabled platforms yet, `shared_kit.source` and `shared_kit.version` taken from the flags or their defaults).
+3. Write `README.md`, `LICENSE`, `.gitignore` and create an empty `skills/` directory.
+4. Run `skl shared sync` internally against the new manifest so the kit lands at `./_shared/` and the resolved `pinned_sha` is written back into the manifest.
+5. Run `git init` unless `--no-git` is passed.
+
+Flags:
+
+| Flag | Default | Notes |
+|------|---------|-------|
+| `--shared-kit-source` | `github.com/danielithomas/ai-skills-shared` | Written into `shared_kit.source` |
+| `--shared-kit-version` | latest tag at fetch time | Written into `shared_kit.version` |
+| `--no-git` | (off) | Skip `git init` |
 
 **Repo-scoped form** - `skl init <skill-kebab-name>`
 
-Creates `skills/<skill-kebab-name>/` populated from the shared kit's standalone-skill template. The user fills in frontmatter, body, knowledge contracts, and fixtures.
+Creates `skills/<skill-kebab-name>/` populated from the shared kit's standalone-skill template. Fails with exit 3 if `./_shared/` is absent (run `skl shared sync` first). The user fills in frontmatter, body, knowledge contracts, and fixtures.
 
 ---
 

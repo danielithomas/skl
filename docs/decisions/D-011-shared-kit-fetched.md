@@ -26,6 +26,7 @@ Fetched via `skl shared sync`. Each skill-host repo carries a pinned, committed 
 ## What this constrains in `skl`
 
 - **`skl shared sync`** is the only sanctioned way to update `_shared/`. Users do not edit kit files directly; they edit `_shared/local/` overrides.
+- **`pinned_sha` in `skill-repo.yaml` is auto-written by `skl shared sync`** and must not be hand-edited. `skl validate` recomputes it during drift detection.
 - **`skl validate`** runs a shared-kit drift check on every invocation.
 - **`skl init`** (global form) runs `skl shared sync` internally so a newly-scaffolded repo has a working kit immediately.
 - **Kit consumption**: `skl` reads `_shared/skill.config.yaml` and `_shared/schemas/*.json` as the source of truth for style rules, schemas and templates. It does NOT fetch them at runtime from a remote.
