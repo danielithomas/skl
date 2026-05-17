@@ -66,7 +66,14 @@ Minor bumps add new verbs, new platform targets, or new validation rules in a ba
 
 ### Skill-host repo compatibility
 
-Each skill-host repo pins a compatible range under `skl_version` in `skill-repo.yaml`. `skl` checks this on every invocation and refuses to run if the installed version is outside the range, with an actionable message and exit code 4.
+Each skill-host repo pins a compatible range under `skl_version` in `skill-repo.yaml`. `skl` checks this on every invocation made from inside a skill-host repo and refuses to run if the installed version is outside the range, with an actionable message and exit code 4.
+
+Two subcommands are exempt from the global guard:
+
+- **`skl init`** - creating a new repo, so there is no existing manifest to validate against.
+- **`skl validate`** - exposes the compatibility check as part of its own report (Check 8), so running the guard first would short-circuit the report.
+
+See [`docs/decisions/SKL-003-global-compatibility-guard.md`](../decisions/SKL-003-global-compatibility-guard.md) for the rationale and edge cases.
 
 ### `COMPATIBILITY.md`
 

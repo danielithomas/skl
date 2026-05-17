@@ -122,6 +122,32 @@ def exit_code(report: ValidationReport) -> int:
     return 0
 
 
+def check_compatibility_or_message(repo_root: Path) -> str | None:
+    """Return an error string if the installed ``skl`` is outside the
+    manifest's ``skl_version`` range, else ``None``.
+
+    Used by the CLI's global compatibility guard (see SKL-003). Lenient on
+    manifest issues: if the manifest is missing, unparseable, or lacks an
+    ``skl_version`` field, returns ``None`` and lets ``skl validate``
+    surface the underlying problem with its richer report.
+    """
+    manifest_path = repo_root / "skill-repo.yaml"
+    if not manifest_path.is_file():
+        return None
+    try:
+        data = manifest.load(manifest_path)
+    except Exception:
+        # Any parse error means "skip the guard" - `skl validate` will surface it.
+        return None
+    if not isinstance(data, dict):
+        return None
+    plain = _to_plain(data)
+    result = _check_compatibility(plain)
+    if result.errors:
+        return result.errors[0]
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Individual checks
 # ---------------------------------------------------------------------------
