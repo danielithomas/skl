@@ -19,6 +19,7 @@ from skl.init import (
     DEFAULT_SHARED_KIT_VERSION,
     find_skill_repo_root,
     init_repo,
+    init_skill,
 )
 from skl.shared import sync_global, sync_repo_scoped
 from skl.validate import (
@@ -109,39 +110,82 @@ def main(ctx: click.Context) -> None:
     "--shared-kit-source",
     default=DEFAULT_SHARED_KIT_SOURCE,
     show_default=True,
-    help="Written into shared_kit.source in the new manifest.",
+    help="(global form) Written into shared_kit.source in the new manifest.",
 )
 @click.option(
     "--shared-kit-version",
     default=DEFAULT_SHARED_KIT_VERSION,
     show_default=True,
-    help="Written into shared_kit.version. Resolved by `skl shared sync` when that command lands.",
+    help="(global form) Written into shared_kit.version. Resolved by `skl shared sync`.",
 )
-@click.option("--no-git", is_flag=True, help="Skip `git init` on the new directory.")
-def init(name: str, shared_kit_source: str, shared_kit_version: str, no_git: bool) -> None:
-    """Scaffold a new skill-host repo (global form) at ./<name>.
+@click.option("--no-git", is_flag=True, help="(global form) Skip `git init` on the new directory.")
+@click.option(
+    "--platform",
+    "platforms",
+    multiple=True,
+    help="(repo-scoped form) Target platform; repeatable. Sidecars are scaffolded "
+    "for non-Skills-native targets.",
+)
+def init(
+    name: str,
+    shared_kit_source: str,
+    shared_kit_version: str,
+    no_git: bool,
+    platforms: tuple[str, ...],
+) -> None:
+    """Scaffold a new skill-host repo (global form) or a new skill (repo-scoped form).
 
-    The repo-scoped form (scaffolding a new skill inside an existing repo) is
-    not implemented yet; this command refuses to run from inside a skill-host
-    repo to avoid accidental nesting.
+    Dispatch is based on the working directory:
+
+    \b
+    - **Outside** a skill-host repo: global form. Creates `./<name>/` with a
+      manifest, README, LICENSE, `.gitignore`, empty `skills/`, and an
+      attempted `skl shared sync`.
+    - **Inside** a skill-host repo: repo-scoped form. Creates
+      `<repo>/skills/<name>/SKILL.md` from the bundled template plus
+      sidecar stubs for any `--platform` targets in {copilot-studio, m365,
+      vscode}.
     """
     cwd = Path.cwd()
-    if find_skill_repo_root(cwd) is not None:
-        raise click.ClickException(
-            "you are inside an existing skill-host repo; the repo-scoped form of "
-            "`skl init` is not yet implemented. cd out before scaffolding a new repo."
+    repo_root = find_skill_repo_root(cwd)
+
+    if repo_root is None:
+        # Global form
+        if platforms:
+            raise click.ClickException(
+                "--platform is only valid in the repo-scoped form (inside an "
+                "existing skill-host repo). For a new repo, omit --platform; "
+                "enable platforms via skills' frontmatter after scaffolding."
+            )
+        target = cwd / name
+        try:
+            init_repo(
+                target,
+                shared_kit_source=shared_kit_source,
+                shared_kit_version=shared_kit_version,
+                no_git=no_git,
+            )
+        except (ValueError, FileExistsError) as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo(f"scaffolded skill-host repo at {target}")
+        return
+
+    # Repo-scoped form
+    if (
+        shared_kit_source != DEFAULT_SHARED_KIT_SOURCE
+        or shared_kit_version != DEFAULT_SHARED_KIT_VERSION
+        or no_git
+    ):
+        click.echo(
+            "warning: --shared-kit-source / --shared-kit-version / --no-git "
+            "are global-form flags and are ignored when scaffolding a skill",
+            err=True,
         )
-    target = cwd / name
     try:
-        init_repo(
-            target,
-            shared_kit_source=shared_kit_source,
-            shared_kit_version=shared_kit_version,
-            no_git=no_git,
-        )
+        skill_root = init_skill(repo_root, name, platforms=platforms)
     except (ValueError, FileExistsError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(f"scaffolded skill-host repo at {target}")
+    click.echo(f"scaffolded skill at {skill_root}")
 
 
 @main.command()
@@ -153,10 +197,13 @@ def init(name: str, shared_kit_source: str, shared_kit_version: str, no_git: boo
     help="(deferred) Validate every skill in the repo.",
 )
 def validate(skill: str | None, all_: bool) -> None:
-    """Validate manifest schema, shared-kit drift and skl compatibility.
+    """Run every implemented validate check family against the repo.
 
-    Frontmatter / body / knowledge-contract / cross-repo / values checks are
-    listed in the report as skipped until the matching scaffolding lands.
+    Cross-repo dependency verification is still listed as ``skipped``
+    because it needs git access to resolve pinned SHAs; landing that is
+    its own work. The ``--skill`` and ``--all`` flags are accepted but
+    raise ``NotImplementedError`` per SKL-002 until per-skill targeting
+    is wired in.
     """
     if skill or all_:
         raise NotImplementedError(

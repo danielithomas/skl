@@ -57,16 +57,17 @@ def test_guard_fires_for_non_exempt_command(
 def test_guard_skipped_for_init(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`skl init` is exempt; the existing-repo refusal surfaces instead of the guard."""
+    """`skl init` is exempt - scaffolds a skill even when the manifest pins out-of-range."""
     _write_manifest(tmp_path / "skill-repo.yaml", _manifest_with_range(">=99.0,<100.0"))
     monkeypatch.chdir(tmp_path)
 
-    result = runner.invoke(main, ["init", "another-repo", "--no-git"])
+    # Inside a repo with an incompatible pin, `skl init <skill>` should still
+    # run the repo-scoped scaffold because init is in COMPAT_GUARD_SKIP.
+    result = runner.invoke(main, ["init", "new-skill"])
 
-    assert result.exit_code != 0
-    assert "inside an existing skill-host repo" in result.output
-    # Specifically not the guard error:
+    assert result.exit_code == 0, result.output
     assert "compatibility check failed" not in result.output
+    assert (tmp_path / "skills" / "new-skill" / "SKILL.md").is_file()
 
 
 def test_guard_skipped_for_validate(

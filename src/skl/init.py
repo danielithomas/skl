@@ -1,11 +1,11 @@
-"""Implementation of `skl init` (global form): scaffold a new skill-host repo.
+"""Implementation of ``skl init`` in both forms.
 
-Per docs/spec/cli.md §`skl init` global form. Scaffolds the directory, writes
-the manifest, calls `skl shared sync` to fetch the shared kit, and optionally
-runs `git init`. If the shared-kit fetch fails (e.g. the source URL is not
-reachable, or the user has not configured auth), `init_repo` logs a warning
-to stderr but otherwise succeeds: the user can re-run `skl shared sync` once
-the source is reachable.
+Global form (existing): scaffold a new skill-host repo. See
+:func:`init_repo` and ``docs/spec/cli.md`` §``skl init`` global form.
+
+Repo-scoped form (this module's :func:`init_skill`): scaffold a new
+skill inside an existing skill-host repo. The CLI dispatches between
+the two based on whether the cwd is inside a skill-host repo.
 """
 
 from __future__ import annotations
@@ -18,11 +18,23 @@ from pathlib import Path
 from textwrap import dedent
 
 from skl import __version__, shared
+from skl.schemas import load_schema
+from skl.templates import load_template, render
 
 DEFAULT_SHARED_KIT_SOURCE = "github.com/danielithomas/ai-skills-shared"
 DEFAULT_SHARED_KIT_VERSION = "latest"
 
 REPO_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
+SKILL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+
+# Platforms recognised in `enabled_platforms` (matches both the manifest
+# schema and the SKILL.md frontmatter schema).
+_KNOWN_PLATFORMS: frozenset[str] = frozenset(
+    {"copilot-studio", "m365", "ms-cowork", "claude-code", "claude-cowork", "vscode"}
+)
+
+# Skills-native targets need no sidecar (compile is essentially a copy).
+_SIDECAR_PLATFORMS: frozenset[str] = frozenset({"copilot-studio", "m365", "vscode"})
 
 
 def init_repo(
@@ -227,3 +239,106 @@ def find_skill_repo_root(start: Path) -> Path | None:
         if (candidate / "skill-repo.yaml").is_file():
             return candidate
     return None
+
+
+# ---------------------------------------------------------------------------
+# Repo-scoped form: scaffold a skill inside an existing skill-host repo
+# ---------------------------------------------------------------------------
+
+
+def init_skill(
+    repo_root: Path,
+    skill_name: str,
+    *,
+    platforms: tuple[str, ...] = (),
+) -> Path:
+    """Scaffold ``<repo_root>/skills/<skill_name>/`` from the bundled template.
+
+    Parameters
+    ----------
+    repo_root:
+        Skill-host repo root (containing ``skill-repo.yaml``).
+    skill_name:
+        Kebab-case skill identifier; becomes the folder name and the
+        SKILL.md ``name`` field.
+    platforms:
+        Platform IDs the new skill targets. Lands in ``skl.enabled_platforms``;
+        sidecar stubs are also written for any of ``{copilot-studio, m365,
+        vscode}`` requested. Skills-native targets (``claude-code`` /
+        ``claude-cowork`` / ``ms-cowork``) need no sidecar.
+
+    Returns the path to the new skill folder.
+
+    Raises ``ValueError`` for a bad skill name or unknown platform IDs,
+    ``FileExistsError`` if the target folder already exists.
+    """
+    if not SKILL_NAME_PATTERN.match(skill_name):
+        raise ValueError(
+            f"skill name {skill_name!r} must match {SKILL_NAME_PATTERN.pattern} "
+            "(kebab-case, leading letter, max 64 chars)"
+        )
+    unknown = [p for p in platforms if p not in _KNOWN_PLATFORMS]
+    if unknown:
+        raise ValueError(
+            f"unknown platform(s): {', '.join(sorted(set(unknown)))}. "
+            f"Known: {', '.join(sorted(_KNOWN_PLATFORMS))}"
+        )
+
+    skill_root = repo_root / "skills" / skill_name
+    if skill_root.exists():
+        raise FileExistsError(f"skill folder already exists: {skill_root}")
+
+    skill_root.mkdir(parents=True)
+    _write_skill_md(skill_root / "SKILL.md", skill_name, platforms)
+    sidecars_written = _write_sidecars(skill_root, platforms)
+    if sidecars_written:
+        print(
+            f"scaffolded {skill_root.relative_to(repo_root)}/ with sidecars: "
+            f"{', '.join(sidecars_written)}",
+            file=sys.stderr,
+        )
+    else:
+        print(f"scaffolded {skill_root.relative_to(repo_root)}/", file=sys.stderr)
+    return skill_root
+
+
+def kebab_to_display_name(name: str) -> str:
+    """Convert ``casey-case-studies`` to ``Casey Case Studies`` for the H1 / display_name."""
+    return " ".join(part.capitalize() for part in name.split("-") if part)
+
+
+def _write_skill_md(path: Path, skill_name: str, platforms: tuple[str, ...]) -> None:
+    template = load_template("standalone-skill.md")
+    display_name = kebab_to_display_name(skill_name)
+    enabled_platforms_yaml = ", ".join(platforms)
+    rendered = render(
+        template,
+        NAME=skill_name,
+        DISPLAY_NAME=display_name,
+        ENABLED_PLATFORMS=enabled_platforms_yaml,
+    )
+    path.write_text(rendered)
+
+
+def _write_sidecars(skill_root: Path, platforms: tuple[str, ...]) -> list[str]:
+    """Write a sidecar stub for each requested non-Skills-native platform."""
+    needed = [p for p in platforms if p in _SIDECAR_PLATFORMS]
+    if not needed:
+        return []
+    sidecars_dir = skill_root / "skl" / "platforms"
+    sidecars_dir.mkdir(parents=True)
+    for platform_id in needed:
+        template = load_template(f"sidecars/{platform_id}.yaml")
+        if platform_id == "m365":
+            template = render(template, M365_SCHEMA_VERSION=_default_m365_schema_version())
+        (sidecars_dir / f"{platform_id}.yaml").write_text(template)
+    return needed
+
+
+def _default_m365_schema_version() -> str:
+    """Read the bundled M365 schema index's ``default`` per SKL-009."""
+    index = load_schema("platforms/m365/index.json")
+    default = index.get("default")
+    if not isinstance(default, str):
+        raise RuntimeError("bundled platforms/m365/index.json is missing a string `default` field")
+    return default

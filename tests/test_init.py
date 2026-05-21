@@ -1,8 +1,9 @@
-"""Tests for `skl init` global form.
+"""Tests for ``skl init`` (global + repo-scoped forms).
 
-Covers the layout produced on disk, manifest contents, flag handling, and
-the safety rails (rejecting bad names, existing targets, and invocation
-from inside an existing skill-host repo).
+Global form covers disk layout, manifest contents, flag handling, and the
+safety rails (rejecting bad names / existing targets). Repo-scoped form
+covers SKILL.md scaffolding, sidecar emission per ``--platform``, the M365
+schema-version pin (per SKL-009), and validation of the scaffolded output.
 """
 
 from __future__ import annotations
@@ -21,7 +22,11 @@ from skl.init import (
     compatible_version_range,
     find_skill_repo_root,
     init_repo,
+    init_skill,
+    kebab_to_display_name,
 )
+from skl.skill_md import parse_skill_md
+from skl.validate import validate_repo
 
 
 @pytest.fixture
@@ -189,12 +194,24 @@ def test_cli_init_scaffolds_repo(runner: CliRunner, tmp_path: Path) -> None:
         assert Path("my-skills/skill-repo.yaml").is_file()
 
 
-def test_cli_init_refuses_inside_existing_repo(runner: CliRunner, tmp_path: Path) -> None:
+def test_cli_init_inside_repo_scaffolds_a_skill(runner: CliRunner, tmp_path: Path) -> None:
+    """Inside an existing skill-host repo, `skl init <name>` scaffolds a skill."""
     with runner.isolated_filesystem(temp_dir=tmp_path):
         Path("skill-repo.yaml").write_text("schema_version: 1\n")
-        result = runner.invoke(main, ["init", "another-repo", "--no-git"])
+        result = runner.invoke(main, ["init", "my-skill"])
+        assert result.exit_code == 0, result.output
+        assert "scaffolded skill" in result.output
+        assert Path("skills/my-skill/SKILL.md").is_file()
+
+
+def test_cli_init_inside_repo_rejects_platform_flag_for_global_form(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """`--platform` outside a repo is a misuse - it's a repo-scoped flag."""
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        result = runner.invoke(main, ["init", "my-skills", "--platform", "claude-code"])
         assert result.exit_code != 0
-        assert "inside an existing skill-host repo" in result.output
+        assert "--platform is only valid in the repo-scoped form" in result.output
 
 
 def test_cli_init_rejects_bad_name(runner: CliRunner, tmp_path: Path) -> None:
@@ -219,3 +236,156 @@ def test_cli_init_default_runs_git_init(runner: CliRunner, tmp_path: Path) -> No
         result = runner.invoke(main, ["init", "my-skills"])
         assert result.exit_code == 0, result.output
         assert Path("my-skills/.git").is_dir()
+
+
+# ---------------------------------------------------------------------------
+# init_skill: repo-scoped form (direct function)
+# ---------------------------------------------------------------------------
+
+
+def _minimal_repo(tmp_path: Path) -> Path:
+    """Set up a minimal skill-host repo (just enough that find_skill_repo_root finds it)."""
+    repo = tmp_path / "host-repo"
+    repo.mkdir()
+    (repo / "skill-repo.yaml").write_text(
+        f"""\
+schema_version: 1
+name: host-repo
+visibility: internal
+skl_version: ">={__version__},<99.0"
+shared_kit:
+  source: github.com/example/kit
+  version: "1.0.0"
+enabled_platforms: []
+"""
+    )
+    return repo
+
+
+def test_init_skill_creates_skill_folder(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    skill_root = init_skill(repo, "my-skill")
+    assert skill_root == repo / "skills" / "my-skill"
+    assert (skill_root / "SKILL.md").is_file()
+    # No platforms requested -> no sidecars
+    assert not (skill_root / "skl").exists()
+
+
+def test_init_skill_substitutes_name_and_display_name(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "casey-case-studies")
+    skill = parse_skill_md(repo / "skills" / "casey-case-studies" / "SKILL.md")
+    assert skill.name == "casey-case-studies"
+    assert skill.display_name == "Casey Case Studies"
+
+
+def test_init_skill_writes_enabled_platforms(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "demo", platforms=("claude-code", "m365"))
+    skill = parse_skill_md(repo / "skills" / "demo" / "SKILL.md")
+    assert skill.enabled_platforms == ["claude-code", "m365"]
+
+
+def test_init_skill_scaffolds_m365_sidecar_with_default_schema(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "demo", platforms=("m365",))
+    m365 = repo / "skills" / "demo" / "skl" / "platforms" / "m365.yaml"
+    assert m365.is_file()
+    # The bundled kit default is "1.7" per SKL-009; the template substitutes it
+    # into `schema_version: "<default>"`.
+    assert 'schema_version: "1.7"' in m365.read_text()
+
+
+def test_init_skill_scaffolds_copilot_studio_and_vscode_sidecars(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "demo", platforms=("copilot-studio", "vscode"))
+    sidecars_dir = repo / "skills" / "demo" / "skl" / "platforms"
+    assert (sidecars_dir / "copilot-studio.yaml").is_file()
+    assert (sidecars_dir / "vscode.yaml").is_file()
+    assert not (sidecars_dir / "m365.yaml").exists()
+
+
+def test_init_skill_skips_sidecars_for_skills_native_platforms(tmp_path: Path) -> None:
+    """claude-code / claude-cowork / ms-cowork need no sidecar (compile is a copy)."""
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "demo", platforms=("claude-code", "claude-cowork", "ms-cowork"))
+    assert not (repo / "skills" / "demo" / "skl").exists()
+
+
+def test_init_skill_rejects_existing_folder(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "demo")
+    with pytest.raises(FileExistsError):
+        init_skill(repo, "demo")
+
+
+def test_init_skill_rejects_bad_name(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    with pytest.raises(ValueError, match="must match"):
+        init_skill(repo, "Bad_Name")
+
+
+def test_init_skill_rejects_unknown_platform(tmp_path: Path) -> None:
+    repo = _minimal_repo(tmp_path)
+    with pytest.raises(ValueError, match="unknown platform"):
+        init_skill(repo, "demo", platforms=("imaginary-platform",))
+
+
+def test_scaffolded_skill_passes_skl_validate(tmp_path: Path) -> None:
+    """The bundled scaffold produces a SKILL.md that `skl validate` accepts."""
+    repo = _minimal_repo(tmp_path)
+    init_skill(repo, "demo", platforms=("claude-code",))
+    report = validate_repo(repo)
+    assert not report.has_errors, (
+        f"validate errors: {[r.errors for r in report.results if r.errors]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "kebab,expected",
+    [
+        ("casey", "Casey"),
+        ("casey-case-studies", "Casey Case Studies"),
+        ("ea-assessment", "Ea Assessment"),
+    ],
+)
+def test_kebab_to_display_name(kebab: str, expected: str) -> None:
+    assert kebab_to_display_name(kebab) == expected
+
+
+# ---------------------------------------------------------------------------
+# CLI integration: repo-scoped form
+# ---------------------------------------------------------------------------
+
+
+def test_cli_init_repo_scoped_with_platform(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _minimal_repo(tmp_path)
+    monkeypatch.chdir(repo)
+    result = runner.invoke(main, ["init", "demo", "--platform", "copilot-studio"])
+    assert result.exit_code == 0, result.output
+    assert (repo / "skills" / "demo" / "SKILL.md").is_file()
+    assert (repo / "skills" / "demo" / "skl" / "platforms" / "copilot-studio.yaml").is_file()
+
+
+def test_cli_init_repo_scoped_warns_on_global_flags(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Global-form flags inside a repo emit a warning but do not block the scaffold."""
+    repo = _minimal_repo(tmp_path)
+    monkeypatch.chdir(repo)
+    result = runner.invoke(main, ["init", "demo", "--no-git"])
+    assert result.exit_code == 0, result.output
+    assert "global-form flags" in result.output
+    assert (repo / "skills" / "demo" / "SKILL.md").is_file()
+
+
+def test_cli_init_repo_scoped_rejects_bad_skill_name(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _minimal_repo(tmp_path)
+    monkeypatch.chdir(repo)
+    result = runner.invoke(main, ["init", "Bad_Name"])
+    assert result.exit_code != 0
+    assert "must match" in result.output

@@ -1,0 +1,10 @@
+# Copilot Studio sidecar for this skill. Schema:
+# https://skl.dev/schemas/platforms/copilot-studio.schema.json
+#
+# bindings:
+#   knowledge:
+#     # <skl.knowledge[].id>: "<Copilot Studio knowledge source name>"
+#   tools:
+#     # <skl.tools[].id>: "<Copilot Studio connector name>"
+#
+# budget: 8000  # per-skill override; defaults to the 8K cap if absent

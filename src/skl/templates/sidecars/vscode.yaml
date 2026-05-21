@@ -1,0 +1,19 @@
+# VS Code sidecar - presence triggers Custom Agent variant emission per SKL-007.
+# Schema: https://skl.dev/schemas/platforms/vscode.schema.json
+#
+# Default: emit both Skill (.github/skills/) and Custom Agent (.github/agents/)
+# variants. Set `emit_skill: false` to suppress the Skill variant.
+#
+# emit_skill: true
+# target: vscode  # or github-copilot
+# model: claude-opus-4-7  # single model, or [list] in priority order
+#
+# bindings:
+#   knowledge:
+#     # <skl.knowledge[].id>: <vscode-knowledge-name>
+#   tools:
+#     # <skl.tools[].id>: <vscode-tool-name>
+#
+# tools: []  # explicit allow-list of VS Code tools / tool-sets
+# agents: []  # sub-agent allow-list; ["*"] for all, [] to disable
+# handoffs: []  # platform-native sequential workflow transitions (SKL-005)

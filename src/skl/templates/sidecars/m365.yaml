@@ -1,0 +1,22 @@
+# M365 declarative-agent sidecar for this skill. Schema:
+# https://skl.dev/schemas/platforms/m365.schema.json
+# Output manifest schema is pinned per skill (SKL-009).
+
+schema_version: "{{M365_SCHEMA_VERSION}}"
+
+# bindings:
+#   knowledge:
+#     # <skl.knowledge[].id>:
+#     #   capability: OneDriveAndSharePoint
+#     #   items_by_url: ["https://contoso.sharepoint.com/sites/example"]
+#   tools:
+#     # <skl.tools[].id>: { action: <plugin-or-action-name> }
+#
+# behavior_overrides:
+#   default_response_mode: Auto  # or "Quick response" / "Think deeper"
+#
+# conversation_starters:  # max 12
+#   # - "First question users might ask"
+#
+# disclaimer:
+#   # text: "<= 500 chars"
