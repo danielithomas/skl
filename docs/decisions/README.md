@@ -24,6 +24,13 @@ The two prefixes are deliberately separate so future numbering does not collide 
 | [SKL-001](./SKL-001-drift-is-warning.md) | Shared-kit drift is a warning, not an error in `skl validate` | `skl validate` exit-code mapping; `_check_shared_kit_drift` accumulates warnings only |
 | [SKL-002](./SKL-002-unimplemented-flags-error.md) | Unimplemented CLI flags raise `NotImplementedError` | Every documented-but-unbuilt flag must error rather than no-op |
 | [SKL-003](./SKL-003-global-compatibility-guard.md) | Global `skl_version` compatibility guard at CLI entry | `skl.cli.main` runs the check before every non-exempt subcommand; skip list is `{init, validate}` |
+| [SKL-004](./SKL-004-master-skill-md-posture.md) | Master SKILL.md posture: Anthropic Skills base + `skl:` extensions, with progressive sidecars | Frontmatter shape, folder layout (`skl/platforms/<id>.yaml`), validator cross-checks, scaffolding template |
+| [SKL-005](./SKL-005-defer-handoff-modelling.md) | Defer multi-agent / handoff modelling to v0.2+ | `_shared/schemas/skill.frontmatter.schema.json` omits `handoffs`; authors use platform-native sidecar fields in v0.1 |
+| [SKL-006](./SKL-006-strip-skl-block-on-skills-native-compile.md) | Strip `skl:` frontmatter on Skills-native compile; emit top-line provenance comment across all compilers | Skills-native compilers remove `skl:` from compiled SKILL.md; every compiler emits `# Compiled by skl <version> from <source> on <date>` |
+| [SKL-007](./SKL-007-vscode-emit-skill-and-custom-agent.md) | VS Code emits Skill + Custom Agent variants when sidecar present; never emits `.chatmode.md` | Two-stage VS Code compiler; `emit_skill: false` opt-out in `skl/platforms/vscode.yaml`; body content rules deferred to Q-009 |
+| [SKL-008](./SKL-008-persona-defaults-skills-format-refresh.md) | Per-target persona defaults refreshed for Skills-format era; supersedes D-006 table for `skl`'s purposes | claude-code / claude-cowork / ms-cowork strip; VS Code splits (Skill strip, Custom Agent surface); per-skill override deferred to v0.2 |
+| [SKL-009](./SKL-009-m365-schema-versioning.md) | Per-skill M365 `schema_version` pin in sidecar; multi-version kit; schema iteration is a kit event, not an `skl` event | M365 sidecar requires `schema_version`; bundled output schemas at `_shared/schemas/platforms/m365/declarative-agent-manifest-<v>.json` + `index.json`; `skl init` scaffolds pin from kit default |
+| [SKL-010](./SKL-010-compat-guard-edge-cases.md) | Compatibility-guard edge cases: `SKL_IGNORE_COMPAT` env var, fail-fast on parse failure, skip list unchanged | Closes SKL-003's deferred edge cases; implementation deltas land in a follow-up code PR |
 
 ## Parent decisions referenced by this spec
 
@@ -34,7 +41,7 @@ These decisions live in the parent project. They are not mirrored here because t
 | D-001 | Compiled `platforms/` artefacts are committed | `cli.md` §`skl compile`; `values-and-secrets.md` (substitution-at-deploy-time preserves D-001) |
 | D-002 | Copilot Studio "live" testing emits a manual-test-pack | `cli.md` §`skl test`; `compilation.md` §`copilot-studio` |
 | D-004 | LLM-graded behavioural tests deferred to v1.1; structural assertions only in v1 | `cli.md` §`skl test` |
-| D-006 | Persona surfacing defaults are platform-specific, driven by `personas.surface_in` | `compilation.md` per-platform table |
+| D-006 | Persona surfacing mechanism (`personas.surface_in`), kebab-prefix-matches-nickname rule | `compilation.md` per-platform table. **Note**: D-006's specific per-target defaults table is superseded by [SKL-008](./SKL-008-persona-defaults-skills-format-refresh.md) for `skl`'s purposes (refresh for the Skills-format era). The mechanism and kebab rule carry forward unchanged |
 
 Full text in [`ai-skills-lib/analysis/06_decision_log.md`](https://github.com/danielithomas/ai-skills-lib/blob/main/analysis/06_decision_log.md).
 
