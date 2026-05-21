@@ -7,6 +7,7 @@ built raise ``NotImplementedError`` with a pointer back to the spec.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from skl.shared import sync_global, sync_repo_scoped
 from skl.validate import (
     CheckResult,
     ValidationReport,
-    check_compatibility_or_message,
+    check_compatibility_status,
     exit_code,
     validate_repo,
 )
@@ -31,9 +32,22 @@ from skl.validate import (
 SPEC_REFERENCE = "See docs/spec/cli.md for the planned behaviour."
 
 # Subcommands exempt from the global `skl_version` compatibility guard. See
-# SKL-003 in docs/decisions/ for the rationale; revisit edge cases via Q-004
-# in docs/open-questions.md.
+# SKL-003 (original guard) and SKL-010 (edge cases) in docs/decisions/.
+# `--version` and `--help` are also exempt because click handles them as eager
+# options that exit before the group callback fires; this is documented rather
+# than coded around (SKL-010 §4).
 COMPAT_GUARD_SKIP: frozenset[str] = frozenset({"init", "validate"})
+
+# Env-var escape hatch (SKL-010). Any value in this set, case-insensitive,
+# bypasses the version-range check with a loud stderr warning. It does NOT
+# bypass parse failure.
+_COMPAT_BYPASS_TRUTHY: frozenset[str] = frozenset({"1", "true", "yes", "on"})
+
+
+def _compat_bypass_enabled() -> bool:
+    """Return True when SKL_IGNORE_COMPAT is set to a truthy value."""
+    raw = os.environ.get("SKL_IGNORE_COMPAT", "")
+    return raw.strip().lower() in _COMPAT_BYPASS_TRUTHY
 
 
 @click.group(
@@ -47,21 +61,46 @@ def main(ctx: click.Context) -> None:
 
     Runs the global compatibility guard (per docs/spec/infrastructure.md
     §Versioning) before any subcommand dispatches, unless that subcommand
-    is in :data:`COMPAT_GUARD_SKIP`.
+    is in :data:`COMPAT_GUARD_SKIP`. Behaviour is governed by SKL-003 (the
+    guard itself) and SKL-010 (env-var escape hatch, fail-fast on parse
+    failure).
+
+    ``skl --version`` and ``skl --help`` bypass this callback entirely
+    because click handles them as eager options that exit before the group
+    callback fires.
     """
     if ctx.invoked_subcommand is None or ctx.invoked_subcommand in COMPAT_GUARD_SKIP:
         return
     repo_root = find_skill_repo_root(Path.cwd())
     if repo_root is None:
         return
-    message = check_compatibility_or_message(repo_root)
-    if message is not None:
+    status = check_compatibility_status(repo_root)
+
+    # Parse failure is non-bypassable. SKL_IGNORE_COMPAT exists for "I know
+    # my version is wrong but I'll fix it later"; a broken manifest is a
+    # different problem - fix the file.
+    if status.kind == "parse_error":
+        click.echo(f"compatibility check failed: {status.message}", err=True)
+        ctx.exit(4)
+        return
+
+    bypass = _compat_bypass_enabled()
+    if status.kind == "mismatch" and not bypass:
         click.echo(
-            f"compatibility check failed: {message}\n"
-            "(skip with `skl validate` to see the full report).",
+            f"compatibility check failed: {status.message}\n"
+            "(set SKL_IGNORE_COMPAT=1 to override for one session, or "
+            "run `skl validate` to see the full report).",
             err=True,
         )
         ctx.exit(4)
+        return
+
+    if bypass:
+        detail = f" ({status.message})" if status.kind == "mismatch" else ""
+        click.echo(
+            f"warning: compatibility guard bypassed via SKL_IGNORE_COMPAT{detail}",
+            err=True,
+        )
 
 
 @main.command()
