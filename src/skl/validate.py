@@ -97,7 +97,7 @@ def validate_repo(repo_root: Path) -> ValidationReport:
         report.results.append(result)
         return report
 
-    plain = _to_plain(data)
+    plain = manifest.to_plain(data)
 
     report.results.append(_check_manifest_schema(plain))
 
@@ -163,7 +163,7 @@ def check_compatibility_status(repo_root: Path) -> GuardCheck:
         )
     if not isinstance(data, dict):
         return GuardCheck(kind="ok")
-    plain = _to_plain(data)
+    plain = manifest.to_plain(data)
     result = _check_compatibility(plain)
     if result.errors:
         return GuardCheck(kind="mismatch", message=result.errors[0])
@@ -240,23 +240,3 @@ def _check_shared_kit_drift(repo_root: Path, data: dict[str, Any]) -> CheckResul
             f"_shared/.kit_version is {on_disk!r}; run `skl shared sync`"
         )
     return result
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _to_plain(obj: Any) -> Any:
-    """Convert ruamel CommentedMap / CommentedSeq trees to plain dict / list.
-
-    Ruamel's mapping and sequence types subclass ``dict`` and ``list``, so a
-    straight ``isinstance`` walk suffices. Conversion keeps the schema code
-    dialect-agnostic and prevents subtle behaviour differences from leaking
-    into downstream callers.
-    """
-    if isinstance(obj, dict):
-        return {str(k): _to_plain(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_to_plain(v) for v in obj]
-    return obj

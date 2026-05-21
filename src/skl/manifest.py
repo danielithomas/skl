@@ -1,12 +1,18 @@
-"""Read and write ``skill-repo.yaml`` with round-trip comment preservation.
+"""Read and write YAML files with round-trip comment preservation.
 
-Uses ``ruamel.yaml`` so user-authored comments and formatting survive the
-write cycle. This is the lowest-level access; higher-level validation will
-land with ``skl validate``. Schema reference: ``docs/spec/manifest.md``.
+The historical use case is ``skill-repo.yaml``, but this module is the
+single point of YAML access for the whole package (per CLAUDE.md). New
+features (SKILL.md frontmatter, per-platform sidecars, values files,
+shared-kit config) all load through here so comment preservation and
+parser behaviour are consistent.
+
+Schema references: ``docs/spec/manifest.md`` (skill-repo),
+``docs/spec/skill-md.md`` (SKILL.md frontmatter).
 """
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -18,15 +24,34 @@ _yaml.indent(mapping=2, sequence=4, offset=2)
 
 
 def load(path: Path) -> Any:
-    """Load a manifest file as a ruamel CommentedMap, preserving comments."""
+    """Load a YAML file as a ruamel CommentedMap, preserving comments."""
     with path.open() as f:
         return _yaml.load(f)
 
 
+def loads(text: str) -> Any:
+    """Load YAML from a string. Used for SKILL.md frontmatter and tests."""
+    return _yaml.load(StringIO(text))
+
+
 def save(data: Any, path: Path) -> None:
-    """Save a manifest object back to disk, preserving comments and formatting."""
+    """Save a YAML object back to disk, preserving comments and formatting."""
     with path.open("w") as f:
         _yaml.dump(data, f)
+
+
+def to_plain(obj: Any) -> Any:
+    """Convert ruamel CommentedMap / CommentedSeq trees to plain dict / list.
+
+    Ruamel's mapping and sequence types subclass ``dict`` and ``list``, so a
+    straight ``isinstance`` walk suffices. Conversion keeps downstream code
+    (JSON Schema validation, dataclass construction) dialect-agnostic.
+    """
+    if isinstance(obj, dict):
+        return {str(k): to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [to_plain(v) for v in obj]
+    return obj
 
 
 def set_shared_kit_fields(manifest_path: Path, **fields: Any) -> None:
