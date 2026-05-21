@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skl.dev/schemas/platforms/m365/declarative-agent-manifest-1.7.json",
+  "title": "M365 declarative-agent manifest v1.7",
+  "description": "Compiled-output schema for the M365 declarative-agent manifest. Bundled here as a baseline so `skl validate` can check compiled `declarative-agent.json` files without a working `ai-skills-shared` source. Replace with Microsoft's official v1.7 schema once ai-skills-shared is bootstrapped (per SKL-009).",
+  "type": "object",
+  "required": ["version", "name", "description", "instructions"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "v1.7"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "description": "System prompt. M365's hard cap is 8,000 chars."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "conversation_starters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "additionalProperties": true,
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "text": { "type": "string" }
+        }
+      },
+      "maxItems": 12
+    },
+    "actions": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "behavior_overrides": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "disclaimer": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": true,
+      "properties": {
+        "text": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "editorial_answers": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "worker_agents": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "user_overrides": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    }
+  }
+}

@@ -14,9 +14,7 @@ that does not yet exist and are reported as skipped with a clear reason.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from importlib import resources
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,6 +23,7 @@ from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
 from skl import __version__, manifest
+from skl.schemas import load_schema
 
 LATEST_VERSION_SENTINEL = "latest"
 
@@ -179,7 +178,7 @@ def check_compatibility_status(repo_root: Path) -> GuardCheck:
 def _check_manifest_schema(data: dict[str, Any]) -> CheckResult:
     """Validate the manifest against the bundled JSON Schema."""
     result = CheckResult(name="manifest")
-    schema = _load_schema("skill-repo.schema.json")
+    schema = load_schema("skill-repo.schema.json")
     validator = jsonschema.Draft202012Validator(schema)
     for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
         location = ".".join(str(p) for p in error.absolute_path) or "(root)"
@@ -246,12 +245,6 @@ def _check_shared_kit_drift(repo_root: Path, data: dict[str, Any]) -> CheckResul
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _load_schema(name: str) -> dict[str, Any]:
-    """Load a JSON Schema shipped under ``skl.schemas``."""
-    text = resources.files("skl.schemas").joinpath(name).read_text()
-    return json.loads(text)
 
 
 def _to_plain(obj: Any) -> Any:

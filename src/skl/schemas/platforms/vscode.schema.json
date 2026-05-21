@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skl.dev/schemas/platforms/vscode.schema.json",
+  "title": "VS Code sidecar",
+  "description": "Schema for `skl/platforms/vscode.yaml`. Triggers Custom Agent (`.agent.md`) emission alongside the Skill variant per SKL-007.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "emit_skill": {
+      "type": "boolean",
+      "default": true,
+      "description": "When false, suppresses the Skill variant and emits only the Custom Agent variant (SKL-007)."
+    },
+    "target": {
+      "type": "string",
+      "enum": ["vscode", "github-copilot"]
+    },
+    "model": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      ],
+      "description": "Single model or prioritised list."
+    },
+    "tools": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Explicit VS Code tool / tool-set allow-list. Composed with `bindings.tools` values at compile time."
+    },
+    "agents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Sub-agent allow-list. `[\"*\"]` for all, empty array to disable."
+    },
+    "handoffs": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true },
+      "description": "Platform-native sequential workflow transitions. Cross-platform abstraction deferred to v0.2 per SKL-005."
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Agent-scoped hook commands (preview in VS Code)."
+    },
+    "mcp-servers": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "argument-hint": {
+      "type": "string"
+    },
+    "user-invocable": {
+      "type": "boolean"
+    },
+    "disable-model-invocation": {
+      "type": "boolean"
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "knowledge": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "object", "additionalProperties": true }
+            ]
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "description": "VS Code tool name the master `skl.tools[].id` binds to."
+          }
+        }
+      }
+    }
+  }
+}

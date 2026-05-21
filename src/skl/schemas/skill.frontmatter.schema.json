@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skl.dev/schemas/skill.frontmatter.schema.json",
+  "title": "SKILL.md frontmatter",
+  "description": "Schema for SKILL.md frontmatter: Anthropic-Skills base fields plus the `skl:` namespaced superset. See SKL-004. Unknown top-level keys are permitted so future Anthropic-Skills fields pass through; inside `skl:` the shape is strict so typos are caught.",
+  "type": "object",
+  "required": ["name", "description"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$",
+      "description": "Kebab-case skill name. <=64 chars (Anthropic constraint)."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "When to load this skill. <=1000 chars (Anthropic allows 1024 but we tighten to M365's 1000 for cross-platform compatibility)."
+    },
+    "skl": {
+      "type": "object",
+      "required": ["schema_version", "display_name", "status", "enabled_platforms"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "enum": [1],
+          "description": "Schema version for the `skl:` block itself."
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable name surfaced in compiled artefacts (e.g. as the H1)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "draft", "deprecated"],
+          "description": "Lifecycle marker. `deprecated` is set via `skl deprecate`."
+        },
+        "lifecycle": {
+          "type": "string",
+          "description": "Free-form business lifecycle category (e.g. `business_development`, `delivery`)."
+        },
+        "persona": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "nickname": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Short name used in compiled persona blocks (per D-006 the kebab `name`'s first segment must match this lowercased)."
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "enabled_platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "copilot-studio",
+              "m365",
+              "ms-cowork",
+              "claude-code",
+              "claude-cowork",
+              "vscode"
+            ]
+          },
+          "uniqueItems": true,
+          "description": "Platforms this skill compiles for. Can be empty during scaffolding."
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Snake-case variable name."
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "required": {
+                "type": "boolean",
+                "description": "Whether deploy fails if this variable has no value at deploy time."
+              },
+              "default": {
+                "type": "string",
+                "description": "Inline default per SKL-004; tier-2 / tier-3 values can still override."
+              }
+            }
+          }
+        },
+        "knowledge": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$",
+                "description": "Kebab-case knowledge identifier used by bindings in per-platform sidecars."
+              },
+              "contract": {
+                "type": "string",
+                "description": "Repo-relative path to the knowledge contract markdown."
+              }
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Snake-case tool identifier used by bindings in per-platform sidecars."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://skl.dev/schemas/platforms/m365/index.schema.json",
+  "description": "Bundled M365 declarative-agent schema index. `default` is what fresh-skill scaffolds adopt; `supported` is the list of versions the bundled kit ships and `skl validate` accepts. `deprecated` carries notes for versions still in `supported` but on a deprecation runway. See SKL-009.",
+  "default": "1.7",
+  "supported": ["1.7"],
+  "deprecated": []
+}

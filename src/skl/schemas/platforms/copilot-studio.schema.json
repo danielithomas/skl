@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skl.dev/schemas/platforms/copilot-studio.schema.json",
+  "title": "Copilot Studio sidecar",
+  "description": "Schema for `skl/platforms/copilot-studio.yaml`. See SKL-004 for the sidecar pattern.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "knowledge": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Copilot Studio UI-bound knowledge source name (e.g. `Case Studies Library`)."
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Copilot Studio connector name."
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8000,
+      "description": "Per-skill override of the 8,000-char Copilot Studio instructions budget."
+    }
+  }
+}

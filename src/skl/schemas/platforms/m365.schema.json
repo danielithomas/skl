@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skl.dev/schemas/platforms/m365.schema.json",
+  "title": "M365 sidecar",
+  "description": "Schema for `skl/platforms/m365.yaml` (sidecar input). The compiled-output manifest schema lives separately under `platforms/m365/declarative-agent-manifest-<v>.json` per SKL-009. See SKL-004 for the sidecar pattern.",
+  "type": "object",
+  "required": ["schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "M365 declarative-agent manifest version this skill targets (per SKL-009). Required - the kit's `index.json` lists supported values."
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "knowledge": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["capability"],
+            "additionalProperties": true,
+            "properties": {
+              "capability": {
+                "type": "string",
+                "enum": [
+                  "WebSearch",
+                  "OneDriveAndSharePoint",
+                  "GraphConnectors",
+                  "GraphicArt",
+                  "CodeInterpreter",
+                  "Dataverse",
+                  "TeamsMessages",
+                  "Email",
+                  "People",
+                  "ScenarioModels",
+                  "Meetings",
+                  "EmbeddedKnowledge"
+                ]
+              },
+              "items_by_url": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "items_by_name": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "items_by_id": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "items_by_share_id": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "action": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "behavior_overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_response_mode": {
+          "type": "string",
+          "enum": ["Auto", "Quick response", "Think deeper"]
+        },
+        "suggestions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "disabled": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "conversation_starters": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "maxItems": 12,
+      "description": "M365 caps this at 12."
+    },
+    "disclaimer": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "editorial_answers": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "URL pointer or up to 300 Q/A pairs per the M365 manifest."
+    },
+    "worker_agents": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true },
+      "description": "Platform-native multi-agent surface. Cross-platform abstraction deferred to v0.2 per SKL-005; v0.1 lets authors write the M365 shape verbatim."
+    },
+    "user_overrides": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true },
+      "description": "JSONPath toggles per the M365 manifest."
+    }
+  }
+}
