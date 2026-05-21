@@ -4,7 +4,7 @@
 |-------|-------|
 | **ID** | SKL-003 |
 | **Date** | 17 May 2026 |
-| **Status** | Final (edge cases tracked separately - see [Q-004](../open-questions.md#q-004---global-skl_version-compatibility-guard-edge-cases)) |
+| **Status** | Final. Edge cases resolved by [SKL-010](./SKL-010-compat-guard-edge-cases.md) |
 | **Owner** | Daniel Thomas |
 | **Raised in** | PR #5 review |
 | **Resolves** | [Q-003](../open-questions.md#q-003---global-skl_version-compatibility-guard-per-verb-or-every-invocation) |
@@ -42,12 +42,12 @@ The guard exits with code 4 per the spec, with a message naming the installed ve
 
 ## Open follow-ups
 
-Several edge cases need their own decisions before the guard's behaviour stabilises - tracked in [Q-004](../open-questions.md#q-004---global-skl_version-compatibility-guard-edge-cases):
+The four deferred edge cases are resolved by [SKL-010](./SKL-010-compat-guard-edge-cases.md):
 
-- Whether to add an escape hatch (env var or flag).
-- Whether unparseable-manifest handling should fail fast.
-- Explicit `--version` exemption documentation.
-- Possible additions to the skip list (`deprecate`, `shared sync`).
+- Escape hatch: `SKL_IGNORE_COMPAT=1` env var only (loud bypass; no flag form in v0.x).
+- Unparseable manifest: fail fast at the guard with a message pointing at `skl validate` (supersedes the silent-skip behaviour from this decision).
+- `--version` / `--help` exemption: documented as relying on click's eager-option exit; not coded.
+- Skip-list extensions: declined; `{init, validate}` remains the complete list. Escape hatch covers the candidate cases.
 
 ## See also
 
