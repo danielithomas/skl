@@ -68,6 +68,12 @@ ignore = [
     "E501",   # line too long (handled by formatter)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The lint module's job is to flag em-dashes / en-dashes in user source -
+# it has to mention the characters literally to do so.
+"src/skl/lint.py" = ["RUF001", "RUF002"]
+"tests/test_lint.py" = ["RUF001", "RUF002"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

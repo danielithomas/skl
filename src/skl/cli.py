@@ -21,6 +21,7 @@ from skl.init import (
     init_repo,
     init_skill,
 )
+from skl.lint import apply_fixes, lint_repo
 from skl.shared import sync_global, sync_repo_scoped
 from skl.validate import (
     CheckResult,
@@ -288,11 +289,46 @@ def index() -> None:
 
 
 @main.command()
-@click.option("--all", "all_", is_flag=True, help="Lint every skill in the repo.")
-@click.option("--fix", is_flag=True, help="Auto-fix where possible.")
+@click.option(
+    "--all",
+    "all_",
+    is_flag=True,
+    help="Accepted for spec compatibility; current behaviour always lints every skill.",
+)
+@click.option("--fix", is_flag=True, help="Apply auto-fixable findings in place.")
 def lint(all_: bool, fix: bool) -> None:
-    """Style enforcement: em-dashes, AU spellings, unresolved tokens, credential-shaped strings."""
-    raise NotImplementedError(f"skl lint is not implemented yet. {SPEC_REFERENCE}")
+    """Style enforcement: em-dashes, AU spellings, unresolved tokens, credentials.
+
+    Lints every skill folder under ``skills/`` in the active repo. Exits 0
+    when no errors are present (warnings allowed); exits 1 when any
+    error-severity finding is reported. With ``--fix``, auto-fixable
+    findings (em-dashes, AU spellings) are applied in place before
+    re-evaluating exit status.
+    """
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        raise click.ClickException("not inside a skill-host repo")
+
+    report = lint_repo(repo_root)
+
+    if fix and report.findings:
+        modified = apply_fixes(report.findings)
+        for path in sorted(modified):
+            click.echo(f"  fixed   {path.relative_to(repo_root)}", err=True)
+        report = lint_repo(repo_root)
+
+    for finding in report.findings:
+        prefix = "ERROR " if finding.severity == "error" else "warn  "
+        location = f"{finding.file.relative_to(repo_root)}:{finding.line}"
+        click.echo(f"  {prefix} [{finding.rule}] {location}: {finding.message}", err=True)
+
+    if not report.findings:
+        click.echo("lint ok", err=True)
+    elif report.has_errors:
+        click.echo(f"lint failed: {len(report.errors)} error(s)", err=True)
+        raise SystemExit(1)
+    else:
+        click.echo(f"lint ok (with {len(report.warnings)} warning(s))", err=True)
 
 
 @main.command()
