@@ -75,7 +75,13 @@ Two subcommands are exempt from the global guard:
 - **`skl init`** - creating a new repo, so there is no existing manifest to validate against.
 - **`skl validate`** - exposes the compatibility check as part of its own report (Check 8), so running the guard first would short-circuit the report.
 
-See [`docs/decisions/SKL-003-global-compatibility-guard.md`](../decisions/SKL-003-global-compatibility-guard.md) for the rationale and edge cases.
+`skl --version` and `skl --help` also bypass the guard - click handles them as eager options that exit before the group callback fires (per [SKL-010](../decisions/SKL-010-compat-guard-edge-cases.md) §4).
+
+**Escape hatch.** Setting `SKL_IGNORE_COMPAT=1` (or `true` / `yes` / `on`, case-insensitive) in the environment bypasses the version-range check for a single session. Every command run with the env var set emits a stderr warning - even when the manifest is in range - so the bypass is loud by design. The escape hatch does **not** bypass parse failure (see below).
+
+**Parse failure.** If the manifest is present but cannot be parsed as YAML, the guard exits 4 with `skill-repo.yaml could not be parsed; run "skl validate" to see the parse error.` Running `skl init` or `skl validate` remains possible (both are in the skip list), so the user has a path to diagnose. `SKL_IGNORE_COMPAT` does not bypass this case - fixing the YAML is a different category of problem.
+
+See [`docs/decisions/SKL-003-global-compatibility-guard.md`](../decisions/SKL-003-global-compatibility-guard.md) for the guard's original landing and [`SKL-010`](../decisions/SKL-010-compat-guard-edge-cases.md) for the edge-case behaviour above.
 
 ### `COMPATIBILITY.md`
 

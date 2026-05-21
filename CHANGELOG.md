@@ -10,8 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `SKL_IGNORE_COMPAT` environment variable as a loud escape hatch for the compatibility guard. Set to `1` / `true` / `yes` / `on` (case-insensitive) to bypass the version-range check for one session; every command emits a stderr warning when the variable is set, including commands the guard would have passed. The escape hatch does **not** bypass manifest parse failure. See [SKL-010](docs/decisions/SKL-010-compat-guard-edge-cases.md).
+- `skl.validate.GuardCheck` dataclass and `check_compatibility_status(repo_root)` returning a tagged result (`ok` / `mismatch` / `parse_error`). Replaces the previous `check_compatibility_or_message` wrapper.
 - Global `skl_version` compatibility guard at the CLI entry point (`skl.cli.main`). Every invocation from inside a skill-host repo runs the guard before the subcommand dispatches; failures exit 4 per the spec. Skip list: `init`, `validate`. See [SKL-003](docs/decisions/SKL-003-global-compatibility-guard.md).
-- `skl.validate.check_compatibility_or_message(repo_root)` - canonical entry point used by both the global guard and `skl validate`'s own Check 8. Lenient on parse failures; lets `skl validate` surface the underlying issue.
+
+### Changed
+- Compatibility guard now fails fast (exit 4) when `skill-repo.yaml` exists but cannot be parsed as YAML, with a message pointing at `skl validate`. Previously the guard silently no-oped on parse failure; the new behaviour gives a clearer next step than the downstream error users were hitting. See [SKL-010](docs/decisions/SKL-010-compat-guard-edge-cases.md).
+- `skl.validate.check_compatibility_or_message` removed in favour of `check_compatibility_status` (see Added). Internal API; no external callers.
 - `docs/open-questions.md` - live log of unresolved questions with `Q-NNN` IDs. Resolved questions stay forever with a strikethrough heading and a link to the deciding `SKL-NNN`.
 - `docs/decisions/SKL-001` (drift is warning), `SKL-002` (unimplemented flags raise NIE), `SKL-003` (global compatibility guard). New `SKL-NNN` prefix for repo-local decisions; existing parent-mirrored decisions keep their `D-NNN` prefix.
 - `skl validate`: runs the implemented check families (manifest schema, skl version compatibility, shared-kit drift) and reports the remaining spec checks (frontmatter, body, knowledge-contracts, cross-repo-dependencies, values-declarations) as `skipped` with a clear reason until SKILL.md scaffolding lands. Exit codes match the spec: 0 ok, 1 validation failure, 4 compatibility failure.

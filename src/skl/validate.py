@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import jsonschema
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -27,6 +27,8 @@ from packaging.version import InvalidVersion, Version
 from skl import __version__, manifest
 
 LATEST_VERSION_SENTINEL = "latest"
+
+GuardKind = Literal["ok", "mismatch", "parse_error"]
 
 
 @dataclass
@@ -122,30 +124,51 @@ def exit_code(report: ValidationReport) -> int:
     return 0
 
 
-def check_compatibility_or_message(repo_root: Path) -> str | None:
-    """Return an error string if the installed ``skl`` is outside the
-    manifest's ``skl_version`` range, else ``None``.
+@dataclass
+class GuardCheck:
+    """Outcome of the CLI guard's pre-flight check.
 
-    Used by the CLI's global compatibility guard (see SKL-003). Lenient on
-    manifest issues: if the manifest is missing, unparseable, or lacks an
-    ``skl_version`` field, returns ``None`` and lets ``skl validate``
-    surface the underlying problem with its richer report.
+    Three states (SKL-003, SKL-010):
+
+    - ``ok``: no manifest, manifest lacks ``skl_version``, manifest is the wrong
+      top-level shape, or the installed ``skl`` is inside the pinned range.
+      The CLI lets the subcommand run.
+    - ``mismatch``: manifest is parseable and the installed ``skl`` is outside
+      its ``skl_version`` range. The CLI exits 4 unless ``SKL_IGNORE_COMPAT``
+      is set, in which case it emits a loud bypass warning and continues.
+    - ``parse_error``: manifest is present but cannot be parsed as YAML. The
+      CLI always exits 4 with a message pointing at ``skl validate``; the
+      ``SKL_IGNORE_COMPAT`` escape hatch does **not** apply.
+    """
+
+    kind: GuardKind
+    message: str = ""
+
+
+def check_compatibility_status(repo_root: Path) -> GuardCheck:
+    """Run the guard's pre-flight check against the manifest at ``repo_root``.
+
+    Used by the CLI's global compatibility guard (see SKL-003, SKL-010).
+    The three return states are documented on :class:`GuardCheck`.
     """
     manifest_path = repo_root / "skill-repo.yaml"
     if not manifest_path.is_file():
-        return None
+        return GuardCheck(kind="ok")
     try:
         data = manifest.load(manifest_path)
-    except Exception:
-        # Any parse error means "skip the guard" - `skl validate` will surface it.
-        return None
+    except Exception as exc:
+        return GuardCheck(
+            kind="parse_error",
+            message=f"skill-repo.yaml could not be parsed ({exc}); "
+            "run `skl validate` to see the parse error.",
+        )
     if not isinstance(data, dict):
-        return None
+        return GuardCheck(kind="ok")
     plain = _to_plain(data)
     result = _check_compatibility(plain)
     if result.errors:
-        return result.errors[0]
-    return None
+        return GuardCheck(kind="mismatch", message=result.errors[0])
+    return GuardCheck(kind="ok")
 
 
 # ---------------------------------------------------------------------------

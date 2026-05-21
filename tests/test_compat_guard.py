@@ -2,7 +2,8 @@
 
 The guard fires before any subcommand dispatches when ``skl`` is invoked from
 inside a skill-host repo, except for subcommands in
-:data:`skl.cli.COMPAT_GUARD_SKIP`. See SKL-003 in ``docs/decisions/``.
+:data:`skl.cli.COMPAT_GUARD_SKIP`. See SKL-003 (original guard) and SKL-010
+(escape hatch, fail-fast on parse failure) in ``docs/decisions/``.
 """
 
 from __future__ import annotations
@@ -95,18 +96,19 @@ def test_guard_silent_outside_skill_host_repo(
     assert "not inside a skill-host repo" in result.output
 
 
-def test_guard_tolerates_unparseable_manifest(
+def test_guard_fails_fast_on_unparseable_manifest(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An unparseable manifest defers to `skl validate`; the guard does not fail."""
+    """Unparseable manifest exits 4 with a parse-failure message (SKL-010)."""
     (tmp_path / "skill-repo.yaml").write_text("schema_version: 1\nname: [unclosed\n")
     monkeypatch.chdir(tmp_path)
 
     result = runner.invoke(main, ["shared", "sync"])
 
-    # The guard should not surface its own compat error against a manifest it
-    # could not parse - let `skl validate` report the parse error instead.
-    assert "compatibility check failed" not in result.output
+    assert result.exit_code == 4, result.output
+    assert "compatibility check failed" in result.output
+    assert "could not be parsed" in result.output
+    assert "skl validate" in result.output
 
 
 def test_guard_silent_when_manifest_has_no_skl_version(
@@ -144,3 +146,98 @@ def test_compat_guard_skip_contents() -> None:
     """The skip list must include `init` and `validate` per SKL-003."""
     assert "init" in COMPAT_GUARD_SKIP
     assert "validate" in COMPAT_GUARD_SKIP
+
+
+# ---------------------------------------------------------------------------
+# SKL-010: SKL_IGNORE_COMPAT env var escape hatch
+# ---------------------------------------------------------------------------
+
+
+def test_env_var_bypasses_mismatch(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SKL_IGNORE_COMPAT lets an out-of-range invocation proceed with a warning."""
+    _write_manifest(tmp_path / "skill-repo.yaml", _manifest_with_range(">=99.0,<100.0"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SKL_IGNORE_COMPAT", "1")
+
+    result = runner.invoke(main, ["shared", "sync"])
+
+    # The guard must not exit 4 - the bypass converts the failure into a warning.
+    assert "compatibility check failed" not in result.output
+    assert "compatibility guard bypassed via SKL_IGNORE_COMPAT" in result.output
+    # Detail is included so the user sees what they bypassed.
+    assert "outside the manifest's skl_version range" in result.output
+    # The downstream command runs (and fails on its own concerns - not our problem here).
+    assert result.exit_code != 4, result.output
+
+
+def test_env_var_warns_even_when_compatible(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Loud bypass: warning fires even when the version is in range."""
+    _write_manifest(
+        tmp_path / "skill-repo.yaml",
+        _manifest_with_range(f">={__version__},<99.0"),
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SKL_IGNORE_COMPAT", "1")
+
+    result = runner.invoke(main, ["shared", "sync"])
+
+    assert "compatibility guard bypassed via SKL_IGNORE_COMPAT" in result.output
+    # No detail to surface when the version is actually compatible.
+    assert "outside the manifest's skl_version range" not in result.output
+
+
+def test_env_var_does_not_bypass_parse_failure(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Parse failure is non-bypassable; the env var has no effect on it."""
+    (tmp_path / "skill-repo.yaml").write_text("schema_version: 1\nname: [unclosed\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SKL_IGNORE_COMPAT", "1")
+
+    result = runner.invoke(main, ["shared", "sync"])
+
+    assert result.exit_code == 4, result.output
+    assert "could not be parsed" in result.output
+    # The bypass warning must not appear; the parse error is the only output.
+    assert "compatibility guard bypassed" not in result.output
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "Yes", "on", " 1 "])
+def test_env_var_truthy_values(
+    runner: CliRunner,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    """All documented truthy spellings (case-insensitive, whitespace-tolerant) bypass."""
+    _write_manifest(tmp_path / "skill-repo.yaml", _manifest_with_range(">=99.0,<100.0"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SKL_IGNORE_COMPAT", value)
+
+    result = runner.invoke(main, ["shared", "sync"])
+
+    assert "compatibility guard bypassed" in result.output, f"value={value!r}"
+    assert result.exit_code != 4
+
+
+@pytest.mark.parametrize("value", ["0", "false", "no", "off", "", "foo"])
+def test_env_var_falsy_values_do_not_bypass(
+    runner: CliRunner,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    """Non-truthy values leave the guard intact."""
+    _write_manifest(tmp_path / "skill-repo.yaml", _manifest_with_range(">=99.0,<100.0"))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SKL_IGNORE_COMPAT", value)
+
+    result = runner.invoke(main, ["shared", "sync"])
+
+    assert result.exit_code == 4, f"value={value!r}: {result.output}"
+    assert "compatibility check failed" in result.output
+    assert "compatibility guard bypassed" not in result.output
