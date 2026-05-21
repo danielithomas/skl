@@ -73,9 +73,26 @@ Flags:
 | `--shared-kit-version` | latest tag at fetch time | Written into `shared_kit.version` |
 | `--no-git` | (off) | Skip `git init` |
 
-**Repo-scoped form** - `skl init <skill-kebab-name>`
+**Repo-scoped form** - `skl init <skill-kebab-name> [--platform <id>]...`
 
-Creates `skills/<skill-kebab-name>/` populated from the shared kit's standalone-skill template. Fails with exit 3 if `./_shared/` is absent (run `skl shared sync` first). The user fills in frontmatter, body, knowledge contracts, and fixtures.
+Creates `skills/<skill-kebab-name>/SKILL.md` and (where applicable) per-platform sidecars. Dispatch between global and repo-scoped is based on the cwd: inside an existing skill-host repo the command runs the repo-scoped form; outside, it runs the global form.
+
+Order of operations:
+
+1. Validate the skill name against the kebab pattern (`^[a-z][a-z0-9-]{0,63}$`).
+2. Validate any `--platform <id>` values against the known platform enum (`copilot-studio`, `m365`, `ms-cowork`, `claude-code`, `claude-cowork`, `vscode`).
+3. Refuse if `skills/<skill-kebab-name>/` already exists.
+4. Write `SKILL.md` from `<repo>/_shared/templates/standalone-skill.md` if present, falling back to the bundled copy in `src/skl/templates/`. `{{NAME}}` and `{{DISPLAY_NAME}}` are substituted; `{{ENABLED_PLATFORMS}}` is the comma-joined `--platform` list.
+5. For each non-Skills-native `--platform` (`copilot-studio` / `m365` / `vscode`), write the matching sidecar stub at `skl/platforms/<id>.yaml`. The M365 stub's `schema_version` is read from the kit's `_shared/schemas/platforms/m365/index.json` `default` (falling back to the bundled copy) per [SKL-009](../decisions/SKL-009-m365-schema-versioning.md).
+6. Skills-native platforms (`claude-code` / `claude-cowork` / `ms-cowork`) need no sidecar.
+
+Flags:
+
+| Flag | Default | Notes |
+|------|---------|-------|
+| `--platform <id>` | (none) | Repeatable. Lands in `skl.enabled_platforms` and triggers sidecar emission for non-Skills-native targets |
+
+The global-form flags (`--shared-kit-source`, `--shared-kit-version`, `--no-git`) are accepted but warned if passed in the repo-scoped context. Conversely, `--platform` in the global form is a clear error.
 
 ---
 
@@ -89,13 +106,15 @@ skl validate [--skill <kebab-name>] [--all]
 
 Checks performed:
 1. **Manifest** - `skill-repo.yaml` matches the documented schema.
-2. **Frontmatter** - every SKILL.md's YAML frontmatter matches the schema in `_shared/schemas/skill.frontmatter.schema.json`.
-3. **Body** - canonical section order is present and complete; section anchors compilers depend on are found.
-4. **Knowledge contracts** - every contract referenced in frontmatter exists; every contract's referenced files exist; cross-references resolve.
-5. **Cross-repo dependencies** - entries in `cross_repo_dependencies[]` resolve at the pinned SHA.
+2. **Frontmatter** - every SKILL.md's YAML frontmatter matches `skill.frontmatter.schema.json` (per [SKL-004](../decisions/SKL-004-master-skill-md-posture.md)). SKILL.md parse errors surface here.
+3. **Body** - required H2 sections present per the platforms the skill targets (per [SKL-008](../decisions/SKL-008-persona-defaults-skills-format-refresh.md)). `## Capabilities`, `## Workflow`, `## Edge Cases`, `## Examples` are always required; `## Identity` is required for persona-surface targets (Copilot Studio; VS Code Custom Agent variant when the sidecar exists); `## Knowledge Sources` / `## Tools` are required when the matching declarations exist. Warns when H1 does not match `skl.display_name`.
+4. **Knowledge contracts** - every `skl.knowledge[i].contract` resolves to an existing file relative to the skill root.
+5. **Cross-repo dependencies** - entries in `cross_repo_dependencies[]` resolve at the pinned SHA. **Deferred in v0.1** (needs git access for pinned-SHA verification); surfaces as `skipped` with a clear reason.
 6. **Shared-kit drift** - `_shared/.kit_version` matches `shared_kit.version` in the manifest; warns on divergent files.
-7. **Values declarations** - every `variables[]` entry in a SKILL.md has either a declared default or is supplied by tier-1 / tier-2 / tier-3 values.
+7. **Values declarations** - every `{{variables.X}}` token in a SKILL.md body or sidecar must be declared in `skl.variables[]`.
 8. **Compatibility** - the installed `skl` version is within the manifest's `skl_version` range.
+
+In addition, the `sidecars` check (new in v0.1 per SKL-004) validates each `skl/platforms/<id>.yaml` against its bundled schema and cross-references every `bindings.knowledge.<id>` / `bindings.tools.<id>` against the master `skl.knowledge[]` / `skl.tools[]` declarations. Warns when `enabled_platforms` includes a non-Skills-native target with no sidecar but the skill declares bindings.
 
 Exit codes: 0 (pass), 1 (validation failure), 4 (compatibility failure).
 
@@ -168,22 +187,27 @@ Lists every skill by `display_name`, `name`, status, lifecycle phase, and a one-
 
 ### `skl lint`
 
-Style enforcement.
+Style enforcement on SKILL.md and sidecar source files.
 
 ```
-skl lint [--skill <kebab-name>] [--all] [--fix]
+skl lint [--all] [--fix]
 ```
 
-Rules enforced:
+Rules enforced (severity in parentheses):
 
-- **No em-dashes (`—`) or en-dashes (`–`).** Replace with ` - ` (hyphen with surrounding spaces).
-- **Australian English spellings**: `organise` / `realise` / `colour` / `catalogue` / `optimisation`. Configurable via `_shared/skill.config.yaml`.
-- **No "as an AI", "I cannot fulfill", "in order to"** in any output text.
-- **Unresolved tokens**: any `{{...}}` remaining in compiled output after deploy-time substitution is an error.
-- **Credential-shaped strings** in compiled artefacts: high-entropy strings, recognised prefixes (`eyJ...`, `xoxb-...`, `sk-...`, `ghp_...`). Per D-008.
-- **Persona / kebab-prefix consistency**: when `persona.nickname` or `persona.role` is set, the kebab `name`'s first segment must match it (lowercased). Per D-006.
+| Rule | Severity | Auto-fix | Notes |
+|------|----------|----------|-------|
+| `em-dash` | error | yes | Em-dash (U+2014) and en-dash (U+2013) replaced with ` - ` (space-hyphen-space). Per CLAUDE.md |
+| `au-spelling` | warning | yes | US-English spellings rewritten to AU equivalents (case preserved: `Color` -> `Colour`, `COLOR` -> `COLOUR`). Wordlist is small and focused in v0.1; the lint kit in `_shared/lint/` will eventually override |
+| `credentials/<vendor>` | error | no | High-signal regexes: AWS access keys (`AKIA...`), Anthropic / OpenAI / GitHub / GitLab / Slack tokens, `BEGIN PRIVATE KEY` blocks. Per [D-008](../decisions/D-008-secrets-separation.md) |
+| `banned-phrase` | warning | no | `"as an AI"`, `"I cannot fulfill"` / `"I cannot fulfil"`, `"in order to"`. Per CLAUDE.md |
+| `unresolved-token` | warning | no | `{{variables.X}}` references where X is not declared in `skl.variables[]`. Validate (Check 7) errors on the same condition; lint warns mid-edit |
 
-`--fix` applies auto-fixable rules in place; the rest are reported.
+Files scanned: `*.md`, `*.yaml`, `*.yml`, `*.txt` under each skill folder. Compiled output under the skill's top-level `platforms/` directory is **not** linted (it is derived from source). Sidecars under `skl/platforms/` **are** linted.
+
+Auto-fix model: each fixable finding carries a `(search, replace)` substring pair applied via `str.replace(..., 1)`. Per-occurrence findings compose without overlap handling. With `--fix`, fixes are applied in place and the lint is re-run before reporting final status.
+
+Exit codes: 0 if no error-severity findings (warnings allowed); 1 if any errors.
 
 ---
 
