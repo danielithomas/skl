@@ -64,6 +64,8 @@ Follows semver. Major bumps are reserved for breaking changes to any of:
 
 Minor bumps add new verbs, new platform targets, or new validation rules in a backward-compatible way. Patch bumps fix bugs and improve diagnostics.
 
+Bundled platform schema iteration (e.g. M365 declarative-agent v1.7 -> v1.8) is delivered through `skl shared sync` as a kit-level event and is **not** an `skl` versioning event on its own - per-skill pinning (per [SKL-009](../decisions/SKL-009-m365-schema-versioning.md)) means the compiler output contract for existing skills is unchanged by a kit refresh. Major bumps triggered by platform schema changes are reserved for the rare case where `skl` drops support for a schema version still pinned by active skills without a deprecation runway.
+
 ### Skill-host repo compatibility
 
 Each skill-host repo pins a compatible range under `skl_version` in `skill-repo.yaml`. `skl` checks this on every invocation made from inside a skill-host repo and refuses to run if the installed version is outside the range, with an actionable message and exit code 4.

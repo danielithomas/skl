@@ -17,10 +17,12 @@ skills/casey-case-studies/
 └── platforms/                                ← compiler output, committed, template-form
     ├── copilot-studio/instructions.md
     ├── m365/manifest.json
-    ├── ms-cowork/casey-case-studies.md
-    ├── claude-code/casey-case-studies.md
-    ├── claude-cowork/casey-case-studies.md
-    └── vscode/casey-case-studies.chatmode.md
+    ├── ms-cowork/casey-case-studies/SKILL.md  ← Anthropic Agent Skill folder
+    ├── claude-code/casey-case-studies/SKILL.md
+    ├── claude-cowork/casey-case-studies/SKILL.md
+    └── vscode/
+        ├── skill/casey-case-studies/SKILL.md  ← Agent Skill variant
+        └── agent/casey-case-studies.agent.md  ← Custom Agent variant (if sidecar present)
 ```
 
 ---
@@ -31,12 +33,13 @@ skills/casey-case-studies/
 |-------------|--------------|------------------|-------|
 | `copilot-studio` | Single markdown file with T-C-R structure | 8,000 chars (hard) | Copilot Studio's instructions field is the only target. Persona surfaces by default |
 | `m365` | JSON manifest + accompanying markdown | 8,000 chars (hard) for instructions field | M365 Copilot declarative agent format. Persona strips by default |
-| `ms-cowork` | Markdown skill file | none (warn > 50K) | Microsoft Cowork product format. Reuses the Claude Cowork compiler with thin adapter |
-| `claude-code` | Markdown subagent file with frontmatter | none (warn > 50K) | Lives under `~/.claude/agents/` on install. Persona surfaces by default |
-| `claude-cowork` | Markdown skill file with frontmatter | none (warn > 50K) | Claude Cowork space format. Persona surfaces by default |
-| `vscode` | `.chatmode.md` file | none (warn > 50K) | VS Code chat-mode format. Persona strips by default |
+| `ms-cowork` | Anthropic Agent Skill folder | none (warn > 50K) | Microsoft Cowork product. Skills-native consumer (compile is essentially a copy). Persona strips by default |
+| `claude-code` | Anthropic Agent Skill folder | none (warn > 50K) | Skills-native consumer. Persona strips by default |
+| `claude-cowork` | Anthropic Agent Skill folder | none (warn > 50K) | Skills-native consumer. Persona strips by default |
+| `vscode` (Skill variant) | Anthropic Agent Skill folder at `platforms/vscode/skill/` | none (warn > 50K) | Loaded from `.github/skills/` etc. Persona strips by default. Emitted whenever `vscode` is in `enabled_platforms` and `emit_skill: false` is not set |
+| `vscode` (Custom Agent variant) | `.agent.md` file at `platforms/vscode/agent/` | none (warn > 50K) | Loaded from `.github/agents/`. Persona surfaces by default. Emitted when `skl/platforms/vscode.yaml` sidecar exists |
 
-The persona surface defaults are controlled by `_shared/skill.config.yaml` `personas.surface_in` (per D-006).
+The persona surface defaults are governed by [SKL-008](../decisions/SKL-008-persona-defaults-skills-format-refresh.md), which refreshes D-006's per-target table for the Anthropic Skills format era. Repo-level overrides live in `_shared/skill.config.yaml` `personas.surface_in` (per D-006). The VS Code two-variant split comes from [SKL-007](../decisions/SKL-007-vscode-emit-skill-and-custom-agent.md).
 
 ---
 
@@ -92,39 +95,43 @@ Steps 1-4 produce a normalised intermediate representation (IR). Each platform c
 
 ### `m365`
 
-- **Output**: `platforms/m365/manifest.json` (declarative-agent manifest) plus `platforms/m365/instructions.md` for the instructions field.
+- **Output**: `platforms/m365/declarative-agent.json` (the manifest) plus `platforms/m365/instructions.md` for the instructions field.
 - **Budget**: 8,000 characters on the instructions field, hard. Compilation fails if exceeded.
-- **Persona**: strips by default.
-- **Tool / knowledge bindings**: rendered into the manifest's `actions` and `data_sources` arrays as platform-specific identifiers.
+- **Persona**: strips by default (per SKL-008).
+- **Tool / knowledge bindings**: rendered into the manifest's `actions[]` and `capabilities[]` arrays as platform-specific identifiers.
+- **Schema version**: pinned per-skill in `skl/platforms/m365.yaml` via `schema_version: "1.7"` (or whichever version the skill targets). The pin is mandatory; the compiler emits `version: "<pinned-version>"` into the manifest. Bundled output schemas live in `_shared/schemas/platforms/m365/declarative-agent-manifest-<v>.json` with an `index.json` declaring supported / default / deprecated versions. See [SKL-009](../decisions/SKL-009-m365-schema-versioning.md) for the resolution rules and how new Microsoft schema releases reach the kit.
 
 ### `ms-cowork`
 
 - **Output**: `platforms/ms-cowork/<name>.md`.
 - **Budget**: none enforced; warn above 50K chars.
-- **Persona**: strips by default (subject to revision once Microsoft Cowork's behaviour is observed live).
-- **Implementation**: delegates to the `claude-cowork` compiler with a thin adapter that rewrites tool names where Microsoft Cowork differs from Claude Cowork. The adapter lives in `skl/compilers/ms_cowork.py` and may diverge into its own implementation when the products' contracts differ enough to warrant it.
+- **Persona**: strips by default (per SKL-008).
+- **Implementation**: Skills-native consumer; compile is essentially a copy of the Anthropic Agent Skill folder. The earlier "delegates to the claude-cowork compiler" model was superseded by SKL-004's Skills-native compile path.
 
 ### `claude-code`
 
-- **Output**: `platforms/claude-code/<name>.md`, a Claude Code subagent file with YAML frontmatter.
+- **Output**: Anthropic Agent Skill folder at `platforms/claude-code/<name>/`, including `SKILL.md` with `skl:` frontmatter block stripped (per SKL-006) and a top-line provenance comment.
 - **Budget**: none enforced; warn above 50K chars.
-- **Persona**: surfaces by default.
-- **Frontmatter shape**: matches Claude Code's documented subagent format (`name`, `description`, optional `tools`).
-- **Knowledge sources**: rendered as file references where the install location is known; otherwise as instructions in the body.
+- **Persona**: strips by default (per SKL-008). Claude is the persona on this surface.
+- **Knowledge sources**: rendered as file references in `references/` per Anthropic Skills convention.
 
 ### `claude-cowork`
 
-- **Output**: `platforms/claude-cowork/<name>.md`.
+- **Output**: Anthropic Agent Skill folder at `platforms/claude-cowork/<name>/`, same shape as `claude-code`.
 - **Budget**: none enforced; warn above 50K chars.
-- **Persona**: surfaces by default.
+- **Persona**: strips by default (per SKL-008).
 - **Notes**: the canonical Cowork compiler; the `ms-cowork` compiler delegates here.
 
 ### `vscode`
 
-- **Output**: `platforms/vscode/<name>.chatmode.md`.
-- **Budget**: none enforced; warn above 50K chars.
-- **Persona**: strips by default.
-- **Frontmatter shape**: matches the VS Code chat-mode format.
+Two emitted variants per SKL-007:
+
+- **Skill variant** at `platforms/vscode/skill/<name>/` (an Anthropic Agent Skill folder). Same byte-stream as `claude-code` / `claude-cowork`. Persona strips by default (per SKL-008). Emitted whenever `vscode` is in `enabled_platforms` unless the sidecar declares `emit_skill: false`.
+- **Custom Agent variant** at `platforms/vscode/agent/<name>.agent.md` (VS Code custom-agent format). Persona surfaces by default (per SKL-008). Emitted when `skl/platforms/vscode.yaml` sidecar exists. Frontmatter composition mapped in SKL-007.
+
+`.chatmode.md` is never emitted (per SKL-007).
+
+- **Budget**: none enforced; warn above 50K chars on either variant.
 
 ---
 
