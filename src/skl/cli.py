@@ -14,6 +14,11 @@ from pathlib import Path
 import click
 
 from skl import __version__
+from skl.compile import (
+    CompilerNotImplementedError,
+    build_ir,
+    compile_skill,
+)
 from skl.init import (
     DEFAULT_SHARED_KIT_SOURCE,
     DEFAULT_SHARED_KIT_VERSION,
@@ -260,11 +265,103 @@ def _validation_summary(report: ValidationReport) -> str:
     return "validation ok"
 
 
+_KNOWN_PLATFORMS: frozenset[str] = frozenset(
+    {"copilot-studio", "m365", "ms-cowork", "claude-code", "claude-cowork", "vscode"}
+)
+
+
 @main.command()
-@click.option("--all", "all_", is_flag=True, help="Compile every skill in the repo.")
-def compile(all_: bool) -> None:
-    """Compile SKILL.md to enabled platform artefacts under platforms/."""
-    raise NotImplementedError(f"skl compile is not implemented yet. {SPEC_REFERENCE}")
+@click.option("--skill", "skill_name", help="Compile a specific skill (by kebab name).")
+@click.option(
+    "--platform",
+    "platform_id",
+    help="Compile for a specific platform. Defaults to every platform in each skill's `enabled_platforms`.",
+)
+@click.option(
+    "--all",
+    "all_",
+    is_flag=True,
+    help="Accepted for spec compatibility; the default is already to compile every skill x enabled-platform combination.",
+)
+def compile(
+    skill_name: str | None,
+    platform_id: str | None,
+    all_: bool,
+) -> None:
+    """Compile SKILL.md to enabled platform artefacts under platforms/.
+
+    Without flags: compiles every skill for every platform in its
+    `enabled_platforms`. With `--skill` / `--platform`: filters to that
+    skill / platform. Stages 3 (VS Code) and 4 (Copilot Studio / M365)
+    add compilers for the remaining targets; until then, `skl compile`
+    against those platforms reports them as skipped.
+    """
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        raise click.ClickException("not inside a skill-host repo")
+
+    if platform_id is not None and platform_id not in _KNOWN_PLATFORMS:
+        raise click.ClickException(
+            f"unknown platform {platform_id!r}; known: {', '.join(sorted(_KNOWN_PLATFORMS))}"
+        )
+
+    skills_dir = repo_root / "skills"
+    if not skills_dir.is_dir():
+        click.echo("no skills/ directory found - nothing to compile", err=True)
+        return
+
+    skill_roots = sorted(p for p in skills_dir.glob("*/") if (p / "SKILL.md").is_file())
+    if skill_name is not None:
+        skill_roots = [p for p in skill_roots if p.name == skill_name]
+        if not skill_roots:
+            raise click.ClickException(f"no skill named {skill_name!r} under skills/")
+
+    compiled = 0
+    skipped = 0
+    errors = 0
+
+    for skill_root in skill_roots:
+        try:
+            ir = build_ir(skill_root, repo_root)
+        except Exception as exc:
+            click.echo(
+                f"  FAIL    {skill_root.name}: could not parse SKILL.md: {exc}",
+                err=True,
+            )
+            errors += 1
+            continue
+
+        targets = [platform_id] if platform_id is not None else list(ir.skill.enabled_platforms)
+        if not targets:
+            click.echo(
+                f"  warn    {ir.name}: no enabled_platforms; nothing to compile",
+                err=True,
+            )
+            continue
+
+        for plat in targets:
+            try:
+                result = compile_skill(ir, plat)
+            except CompilerNotImplementedError as exc:
+                click.echo(f"  skip    {plat:<15} {ir.name}: {exc}", err=True)
+                skipped += 1
+                continue
+            except Exception as exc:
+                click.echo(f"  FAIL    {plat:<15} {ir.name}: {exc}", err=True)
+                errors += 1
+                continue
+            relative_out = result.output_root.relative_to(repo_root)
+            click.echo(
+                f"  ok      {plat:<15} {ir.name} -> {relative_out}/ "
+                f"({len(result.files_written)} files)",
+                err=True,
+            )
+            compiled += 1
+
+    summary = f"compile complete: {compiled} ok, {skipped} skipped, {errors} errors"
+    click.echo(summary, err=True)
+    if errors:
+        raise SystemExit(1)
 
 
 @main.command()
