@@ -152,17 +152,22 @@ def test_cli_compile_unknown_skill_errors(
     assert "no skill named" in result.output
 
 
-def test_cli_compile_unimplemented_platform_skips(
+def test_cli_compile_all_six_platforms_now_implemented(
     runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Targeting m365 / copilot-studio / vscode reports skipped, exit 0."""
+    """Post-Stage-4: every documented platform routes to a working compiler.
+
+    The CompilerNotImplementedError surface is still in the dispatcher for
+    future deferred platforms, but none of the six v0.1 targets raise it.
+    """
     repo = _make_repo(tmp_path)
-    _scaffold_skill(repo, "alpha", platforms=("m365",))
+    # Use a Skills-native target so no sidecar is required.
+    _scaffold_skill(repo, "alpha", platforms=("claude-code",))
     monkeypatch.chdir(repo)
-    result = runner.invoke(main, ["compile", "--platform", "m365"])
+    result = runner.invoke(main, ["compile", "--platform", "claude-code"])
     assert result.exit_code == 0, result.output
-    assert "skip" in result.output
-    assert "1 skipped" in result.output
+    assert "1 ok" in result.output
+    assert "skipped" not in result.output or "0 skipped" in result.output
 
 
 def test_cli_compile_skill_with_no_platforms_warns(
