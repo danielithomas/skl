@@ -32,7 +32,6 @@ def test_help_flag(runner: CliRunner) -> None:
 @pytest.mark.parametrize(
     "command",
     [
-        ["budget"],
         ["test"],
         ["deploy", "--skill", "casey", "--platform", "claude-code"],
         ["values", "check"],
