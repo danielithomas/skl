@@ -11,7 +11,7 @@ schema_version: 1                          # bumped on breaking changes to this 
 name: ea-assessment                        # kebab; matches the repo name by convention
 description: ISO-grounded Enterprise Architecture assessment skill library
 visibility: internal                       # public | internal | restricted (closes P-007)
-custodian: ops@example.com        # who owns this repo
+custodian: ops@example.com                 # who owns this repo
 skl_version: ">=1.0,<2.0"                  # required skl semver range
 shared_kit:
   source: github.com/<org>/ai-skills-shared
