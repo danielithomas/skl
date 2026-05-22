@@ -163,31 +163,39 @@ Stages 5, 6, 7 depend on at least one compiler from Stage 2 existing - they can 
 
 ## Stage 3: VS Code compile
 
+**Status: complete (PR `feat/stage-3-vscode-compile`).**
+
 **User value:** "I can `skl compile vscode <skill>` and get both an Agent Skill variant and a Custom Agent variant ready for VS Code."
 
 ### Acceptance criteria
 
-- [ ] `skl compile vscode <skill>` with no `skl/platforms/vscode.yaml` sidecar emits only the Skill variant at `platforms/vscode/skill/<skill>/SKILL.md`. Same byte-stream as `claude-code` for that skill.
-- [ ] With a `vscode.yaml` sidecar present, both variants are emitted by default: Skill variant + Custom Agent variant at `platforms/vscode/agent/<skill>.agent.md`.
-- [ ] `emit_skill: false` in the sidecar suppresses the Skill variant.
-- [ ] Custom Agent frontmatter is composed from master SKILL.md + sidecar per SKL-007's mapping table.
-- [ ] `.chatmode.md` never emitted under any setting.
-- [ ] Custom Agent body retains `## Identity` (persona surfaces per SKL-008 for the Custom Agent variant).
+- [x] `skl compile vscode <skill>` with no `skl/platforms/vscode.yaml` sidecar emits only the Skill variant at `platforms/vscode/skill/<skill>/SKILL.md`. Same byte-stream as `claude-code` for that skill (asserted by `test_skill_variant_bytes_match_claude_code`).
+- [x] With a `vscode.yaml` sidecar present, both variants are emitted by default: Skill variant + Custom Agent variant at `platforms/vscode/agent/<skill>.agent.md`.
+- [x] `emit_skill: false` in the sidecar suppresses the Skill variant.
+- [x] Custom Agent frontmatter is composed from master SKILL.md + sidecar per SKL-007's mapping table.
+- [x] `.chatmode.md` never emitted under any setting.
+- [x] Custom Agent body retains `## Identity` (persona surfaces per SKL-008 for the Custom Agent variant).
 
 ### Tasks
 
-- [ ] `src/skl/compile/vscode.py` - the two-stage VS Code compiler. Reuses Skills-native compiler for the Skill variant.
-- [ ] Custom Agent frontmatter composition: lift `target`, `model`, `tools`, `agents`, `handoffs`, `hooks`, `mcp-servers` from sidecar; `description` + `name` from master SKILL.md.
-- [ ] `tools:` array sourced from `bindings.tools` values per SKL-007.
+- [x] `src/skl/compile/vscode.py` - `compile_vscode(ir, *, now)` entry point plus `_build_custom_agent_md`, `_compose_custom_agent_frontmatter`, `_compose_tools_list` helpers.
+- [x] Refactor `skl.compile.skills_native` to expose `emit_skills_native(ir, output_root, *, now)` so the VS Code Skill variant reuses the Skills-native transformations without re-routing through the dispatcher.
+- [x] `skl.manifest.dumps(obj)` - fresh-emission YAML helper used to serialise the Custom Agent frontmatter.
+- [x] Custom Agent frontmatter composition per SKL-007: `name` / `description` from master; sidecar passthroughs for `target` / `model` / `agents` / `handoffs` / `hooks` / `mcp-servers` / `argument-hint` / `user-invocable` / `disable-model-invocation`.
+- [x] `tools:` array sourced from sidecar `bindings.tools` (sorted by skill tool ID) merged with explicit `tools:` (declaration order preserved), deduped on first occurrence.
+- [x] Dispatcher routes `vscode` to `compile_vscode`; `CompilerNotImplementedError` set narrowed to `{copilot-studio, m365}`.
 
 **Tests:**
 
-- [ ] `tests/test_compile_vscode.py` - sidecar absent: Skill only; sidecar present: both variants; `emit_skill: false`: Custom Agent only; persona retained in Custom Agent body; persona stripped from Skill variant body.
+- [x] `tests/test_compile_vscode.py` (20 cases) covering variant emission rules, byte-identical Skill variant vs claude-code, Identity retention/strip per variant, provenance placement, frontmatter passthroughs, `tools` composition (bindings-only / explicit-only / merge-with-dedup / empty), sibling-folder behaviour, dispatcher routing, CLI integration.
+- [x] `tests/test_compile_skills_native.py` parametrize narrowed (vscode removed from not-yet-implemented).
+- [x] Total: 286 tests pass; ruff + format clean.
 
 **Docs:**
 
-- [ ] Update `docs/spec/compilation.md` `vscode` section to match (SKL-007 / SKL-008 already partially documented this; tighten with the implementation behaviour).
-- [ ] `CHANGELOG.md` Unreleased entry.
+- [x] `docs/spec/compilation.md` `vscode` section rewritten with the emission table and the Custom Agent frontmatter composition table.
+- [x] `docs/spec/cli.md` `skl compile` Stage status reflects Stage 3 complete.
+- [x] `CHANGELOG.md` Unreleased entry.
 
 ---
 

@@ -138,8 +138,8 @@ skl compile [--skill <kebab-name>] [--platform <platform-id>] [--all]
 
 Stage status (per [`docs/plan.md`](../plan.md)):
 
-- v0.1 ships Skills-native compile for `claude-code` / `claude-cowork` / `ms-cowork` (one implementation, byte-identical output across the three, per SKL-006 + SKL-008).
-- `vscode` lands in Stage 3 (Skill + Custom Agent variants per SKL-007).
+- Skills-native compile for `claude-code` / `claude-cowork` / `ms-cowork` (Stage 2). One implementation, byte-identical output across the three, per SKL-006 + SKL-008.
+- VS Code compile (Stage 3). Emits a Skill variant (byte-identical to `claude-code`) and/or a Custom Agent variant per SKL-007. See `compilation.md` for the per-variant emission rules.
 - `copilot-studio` and `m365` land in Stage 4. Until then, targeting them reports `skip` with a pointer to the relevant stage; the run exits 0 with the skipped count in the summary.
 
 Exit codes: 0 if no errors (skips allowed); 1 if any compiler errored.

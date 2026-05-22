@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+Stage 3 (VS Code compile) - the two-variant compiler per SKL-007. `skl compile vscode <skill>` emits one or both of:
+
+- **Skill variant** at `platforms/vscode/skill/<name>/SKILL.md`. Byte-identical to the `claude-code` output for the same skill (the implementation reuses `skl.compile.skills_native.emit_skills_native`). Persona stripped per SKL-008.
+- **Custom Agent variant** at `platforms/vscode/agent/<name>.agent.md`. Single VS Code custom-agent file. Frontmatter composed per SKL-007 (`name` / `description` from master; `target` / `model` / `agents` / `handoffs` / `hooks` / `mcp-servers` / `argument-hint` / `user-invocable` / `disable-model-invocation` from sidecar; `tools` array merged from `bindings.tools` values and explicit `tools:` entries with first-occurrence dedup). Body retains `## Identity` (Custom-Agent persona surfacing per SKL-008). Provenance comment above the fence per SKL-006.
+
+Emission rules: sidecar absent -> Skill only. Sidecar present -> both variants (default). `emit_skill: false` in the sidecar -> Custom Agent only. `.chatmode.md` is never emitted (SKL-007 risk-row).
+
+Supporting changes:
+
+- `skl.compile.skills_native.emit_skills_native(ir, output_root, *, now)` - new public helper extracted from `compile_skills_native`. The VS Code Skill variant calls it directly to land Skills-native bytes at a vscode-specific path.
+- `skl.manifest.dumps(obj)` - fresh-emission YAML helper. Counterpart to `loads`. Used to serialise the Custom Agent frontmatter.
+- Dispatcher: `compile_skill(ir, "vscode")` routes to `compile_vscode`. The `CompilerNotImplementedError` set narrows to `{copilot-studio, m365}` (Stage 4 pending).
+
 Stage 2 (Skills-native compile) - the first working `skl compile`. Single implementation in `skl.compile.skills_native` serves all three targets (`claude-code`, `claude-cowork`, `ms-cowork`); output bytes are byte-identical across the three, only the destination path differs.
 
 - **`skl compile`** CLI verb. Default: every skill x every `enabled_platforms` entry. `--skill <name>` / `--platform <id>` filter. `vscode` / `copilot-studio` / `m365` raise `CompilerNotImplementedError` and report as `skip` with a pointer to the stage they land in. Exit codes: 0 (skips allowed) / 1 (any error).
