@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+Stage 4 (Microsoft compile + `skl budget`) - completes the v0.1 compiler set. **All six v0.1 platforms now compile.**
+
+- **Copilot Studio compiler** (`skl.compile.copilot_studio`). Single-file output at `platforms/copilot-studio/instructions.md`. Canonical-section composition with `## Identity` + `## Tone` inlined as the preamble (no H2 headers) per SKL-008's surface default. `{{knowledge.<id>}}` / `{{tools.<id>}}` tokens rewrite to `/<binding-value>` UI references when the sidecar declares a string binding. 8K hard budget on the instructions body; sidecar `budget:` field can lower the cap.
+- **M365 compiler** (`skl.compile.m365`). Two-file output: `platforms/m365/declarative-agent.json` (the manifest) + `platforms/m365/instructions.md` (human-readable mirror). Mandatory per-skill `schema_version` pin per SKL-009 resolved against the kit's `index.json` (synced kit at `_shared/schemas/platforms/m365/` shadows the bundled copy). Unsupported version errors; `deprecated` entry strong-warns; older-than-default soft-warns. Compiled manifest validated against the per-version schema **before write**. Bindings render as `capabilities[]` / `actions[]` array entries. `## Identity` stripped per SKL-008. 8K hard budget on the manifest's `instructions` field. `conversation_starters` strings (sidecar shape) convert to `{title: ...}` objects (manifest shape).
+- **Shared compile utilities** (`skl.compile._transforms`) - `FENCE_RE`, `split_frontmatter_and_body`, `remove_top_level_yaml_block`, `remove_h2_section`, `rewrite_binding_tokens`. Extracted from inline duplicates in the existing compilers; both Microsoft compilers and the Skills-native / VS Code paths now share the same primitives.
+- **`skl.compile.budget`** module with `PLATFORM_BUDGETS`, `BudgetExceededError`, `enforce_budget()` helper. Used by both Microsoft compilers at write time.
+- **`skl.budget`** module + **`skl budget`** CLI verb. Walks every skill x every budget-capped platform, computes the would-be compiled-instructions length via the `compose_<platform>_instructions` helpers, and renders a deterministic table. Exit 0 if no overages; exit 1 if any `(skill, platform)` pair exceeds its cap. Suitable for CI drift detection.
+
+Dispatcher now routes every v0.1 platform; `CompilerNotImplementedError` remains in the public surface for future deferred targets but no v0.1 platform raises it.
+
 Stage 3 (VS Code compile) - the two-variant compiler per SKL-007. `skl compile vscode <skill>` emits one or both of:
 
 - **Skill variant** at `platforms/vscode/skill/<name>/SKILL.md`. Byte-identical to the `claude-code` output for the same skill (the implementation reuses `skl.compile.skills_native.emit_skills_native`). Persona stripped per SKL-008.

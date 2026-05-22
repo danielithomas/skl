@@ -88,7 +88,7 @@ Steps 1-4 produce a normalised intermediate representation (IR). Each platform c
 `skl.compile` is the implementation entry point. Public surface:
 
 - `build_ir(skill_root, repo_root) -> ResolvedSkill` - parses `SKILL.md` + any sidecars under `skl/platforms/` into the IR. Cheap; the IR carries the raw text so compilers that do text surgery preserve author formatting outside the bits they deliberately rewrite.
-- `compile_skill(ir, platform_id) -> CompileResult` - dispatcher. Routes Skills-native targets (`claude-code` / `claude-cowork` / `ms-cowork`) to `compile_skills_native`; raises `CompilerNotImplementedError` for `vscode` (Stage 3) and `copilot-studio` / `m365` (Stage 4); raises `ValueError` for unknown platforms.
+- `compile_skill(ir, platform_id) -> CompileResult` - dispatcher. Routes each of the six v0.1 platforms to its compiler (`compile_skills_native` for `claude-code` / `claude-cowork` / `ms-cowork`; `compile_vscode`; `compile_copilot_studio`; `compile_m365`); raises `ValueError` for unknown platforms. The `CompilerNotImplementedError` class remains for future deferred platforms.
 - `provenance_comment(source_relpath, *, now, version)` - the SKL-006 top-line comment. Takes `now` and `version` parameters so tests pin them.
 
 `CompileResult` carries `skill_name`, `platform_id`, `output_root`, `files_written`, `warnings`. The CLI uses it to print per-target output lines and the run summary.
@@ -101,19 +101,31 @@ Determinism: same input set + pinned date / version produces byte-identical outp
 
 ### `copilot-studio`
 
-- **Output**: `platforms/copilot-studio/instructions.md`, a single markdown file structured per the T-C-R framework (Tone, Capabilities, Rules).
-- **Budget**: 8,000 characters, hard. Compilation fails if exceeded.
-- **Persona**: surfaces by default.
-- **Tool / knowledge bindings**: rendered into the body as platform-recognised references (SharePoint library names for knowledge; connector names for tools).
+Implemented in `skl.compile.copilot_studio`. Single-file output.
+
+- **Output**: `platforms/copilot-studio/instructions.md`. The first line is the SKL-006 provenance comment; the rest is the instructions body the author pastes into Copilot Studio's free-text instructions field.
+- **Persona**: surfaces by default (per SKL-008). The `## Identity` body section is inlined as the preamble (H2 header dropped); `## Tone` (if present) follows immediately.
+- **Section order in the instructions body**: Identity + Tone (inlined, no headers) → `## Capabilities` → `## Knowledge Sources` → `## Tools` → `## Workflow` → `## Output Format` → `## Response Templates` → `## Edge Cases` → `## Examples`. Sections missing from the source are skipped (no empty headers).
+- **Knowledge / tools tokens**: `{{knowledge.<id>}}` and `{{tools.<id>}}` are rewritten to `/<binding-value>` Copilot Studio UI references when the sidecar declares a string binding. `{{variables.x}}` is deploy-time and stays.
+- **Budget**: 8,000-character hard cap on the instructions body (provenance comment excluded). Sidecar `budget:` field can lower the cap. Over-budget compiles raise `BudgetExceededError` and exit 1.
 - **Notes**: Copilot Studio's instructions field is the only target. There is no manifest file. Live testing emits a `manual-test-pack.md` per D-002.
 
 ### `m365`
 
-- **Output**: `platforms/m365/declarative-agent.json` (the manifest) plus `platforms/m365/instructions.md` for the instructions field.
-- **Budget**: 8,000 characters on the instructions field, hard. Compilation fails if exceeded.
-- **Persona**: strips by default (per SKL-008).
-- **Tool / knowledge bindings**: rendered into the manifest's `actions[]` and `capabilities[]` arrays as platform-specific identifiers.
-- **Schema version**: pinned per-skill in `skl/platforms/m365.yaml` via `schema_version: "1.7"` (or whichever version the skill targets). The pin is mandatory; the compiler emits `version: "<pinned-version>"` into the manifest. Bundled output schemas live in `_shared/schemas/platforms/m365/declarative-agent-manifest-<v>.json` with an `index.json` declaring supported / default / deprecated versions. See [SKL-009](../decisions/SKL-009-m365-schema-versioning.md) for the resolution rules and how new Microsoft schema releases reach the kit.
+Implemented in `skl.compile.m365`. Two-file output - JSON manifest + a human-readable mirror.
+
+- **Output**: `platforms/m365/declarative-agent.json` (the manifest, validated against the bundled schema for the pinned version) plus `platforms/m365/instructions.md` (the human-readable mirror of the manifest's `instructions` field, for diff / review).
+- **Persona**: strips by default (per SKL-008). The `## Identity` section is removed from the manifest's `instructions` text.
+- **Section order in the `instructions` field**: `## Capabilities` → `## Knowledge Sources` → `## Tools` → `## Workflow` → `## Output Format` → `## Response Templates` → `## Edge Cases` → `## Examples`. No Identity preamble.
+- **Bindings → manifest fields**:
+  - `bindings.knowledge.<id>` → entries in the manifest's `capabilities[]` array (using the binding's `capability` enum + `items_by_*` fields).
+  - `bindings.tools.<id>` → entries in the manifest's `actions[]` array.
+- **Manifest passthrough fields**: `conversation_starters`, `behavior_overrides`, `disclaimer`, `editorial_answers`, `worker_agents`, `user_overrides` from the sidecar pass through verbatim. `conversation_starters` strings (the sidecar's authoring shape) are converted to `{title: ...}` objects to satisfy the M365 schema.
+- **Schema version**: pinned per-skill in `skl/platforms/m365.yaml` via `schema_version: "1.7"` (or whichever version the skill targets). The pin is **mandatory**; missing sidecar or missing field raises `M365SchemaError`. The compiler emits `version: "v<pinned-version>"` into the manifest. Bundled output schemas live in `src/skl/schemas/platforms/m365/declarative-agent-manifest-<v>.json` with an `index.json` declaring `default` / `supported` / `deprecated`. Per SKL-009. Kit override at `_shared/schemas/platforms/m365/` shadows the bundled copy when present.
+- **Schema-version resolution outcomes**: unsupported version → `M365SchemaError`. `deprecated` entry → strong warning carrying the note. Version older than `default` → soft warning. All warnings surface on `CompileResult.warnings`.
+- **Manifest validation**: the compiled manifest is validated against the resolved schema **before write**; a manifest that fails validation fails the compile (composition bugs surface early).
+- **Budget**: 8,000-character hard cap on the manifest's `instructions` field. Over-budget compiles raise `BudgetExceededError` and exit 1.
+- **Provenance**: a `$comment` field in the manifest carries the SKL-006 line; `instructions.md` gets a top-line `#` comment as usual.
 
 ### Skills-native targets: `claude-code`, `claude-cowork`, `ms-cowork`
 

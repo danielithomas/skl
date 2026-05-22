@@ -139,8 +139,11 @@ skl compile [--skill <kebab-name>] [--platform <platform-id>] [--all]
 Stage status (per [`docs/plan.md`](../plan.md)):
 
 - Skills-native compile for `claude-code` / `claude-cowork` / `ms-cowork` (Stage 2). One implementation, byte-identical output across the three, per SKL-006 + SKL-008.
-- VS Code compile (Stage 3). Emits a Skill variant (byte-identical to `claude-code`) and/or a Custom Agent variant per SKL-007. See `compilation.md` for the per-variant emission rules.
-- `copilot-studio` and `m365` land in Stage 4. Until then, targeting them reports `skip` with a pointer to the relevant stage; the run exits 0 with the skipped count in the summary.
+- VS Code compile (Stage 3). Emits a Skill variant (byte-identical to `claude-code`) and/or a Custom Agent variant per SKL-007.
+- Copilot Studio compile (Stage 4). 8K hard budget. Identity inlined as preamble; canonical-section composition; knowledge / tools tokens rewritten to `/<binding>` UI refs. See `compilation.md` for the section order and rewrite rules.
+- M365 compile (Stage 4). Two-file output (`declarative-agent.json` + `instructions.md`); mandatory per-skill `schema_version` pin per SKL-009; compiled manifest validated against the bundled schema before write; 8K cap on the manifest's `instructions` field.
+
+**All six v0.1 platforms now compile.**
 
 Exit codes: 0 if no errors (skips allowed); 1 if any compiler errored.
 
@@ -148,22 +151,34 @@ Exit codes: 0 if no errors (skips allowed); 1 if any compiler errored.
 
 ### `skl budget`
 
-Report character usage versus per-platform budget.
+Report compiled-instructions character usage versus per-platform budget caps.
 
 ```
-skl budget [--skill <kebab-name>] [--all]
+skl budget [--all]
+```
+
+Walks every skill in the repo. For each enabled platform with a hard cap, computes the would-be compiled-instructions length and reports it as a row of a deterministic table:
+
+```
+Skill                           Platform           Used      Cap     %  Status
+--------------------------------------------------------------------------------
+casey-case-studies              copilot-studio    6,234    8,000   78%  ok
+casey-case-studies              m365              5,891    8,000   74%  ok
+big-skill                       copilot-studio    8,512    8,000  106%  OVER
 ```
 
 Currently enforced budgets:
 
 | Platform | Budget | Notes |
 |----------|--------|-------|
-| Copilot Studio | 8,000 chars | Hard limit imposed by the platform |
-| M365 Copilot | 8,000 chars | Same as above |
-| Claude Code | None | But warn if > 50,000 |
-| Other platforms | None | Reserved |
+| Copilot Studio | 8,000 chars | Hard limit imposed by the platform. Per-skill `budget:` in `skl/platforms/copilot-studio.yaml` can lower the cap |
+| M365 Copilot | 8,000 chars | Hard limit on the manifest's `instructions` field |
+| Skills-native (`claude-code`, `claude-cowork`, `ms-cowork`) | none | Uncapped; not measured |
+| VS Code (Skill + Custom Agent) | none | Uncapped; not measured |
 
-Exit 1 if any skill exceeds a hard budget. The character counter is the same one used historically in `utils/character_counter.py` of the parent project.
+Skills whose SKILL.md fails to parse appear in a `skipped` footer rather than the main table - run `skl validate` to surface the parse error.
+
+Exit 0 if every (skill, platform) pair fits its cap; exit 1 if any row is `OVER`. Same input set produces byte-identical output; suitable for CI drift detection.
 
 ---
 

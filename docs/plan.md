@@ -201,34 +201,38 @@ Stages 5, 6, 7 depend on at least one compiler from Stage 2 existing - they can 
 
 ## Stage 4: Microsoft compile
 
+**Status: complete (PR `feat/stage-4-microsoft-compile`).** All six v0.1 platforms now compile.
+
 **User value:** "I can `skl compile copilot-studio <skill>` and `skl compile m365 <skill>` and get usable artefacts inside the 8K budget."
 
 ### Acceptance criteria
 
-- [ ] `skl compile copilot-studio <skill>` produces `platforms/copilot-studio/instructions.md` in T-C-R order with `## Identity` surfaced per SKL-008.
-- [ ] `skl compile m365 <skill>` produces `platforms/m365/declarative-agent.json` (with `version` matching the sidecar's `schema_version` per SKL-009) plus `platforms/m365/instructions.md`.
-- [ ] 8K budget enforced at compile time for both; compile fails (exit 1) if exceeded.
-- [ ] M365 compiled output validates against the bundled `_shared/schemas/platforms/m365/declarative-agent-manifest-<version>.json`.
-- [ ] `skl budget` reports per-skill character usage versus the 8K cap.
+- [x] `skl compile copilot-studio <skill>` produces `platforms/copilot-studio/instructions.md` with `## Identity` inlined as preamble (per SKL-008) and the canonical-section order documented in `compilation.md`.
+- [x] `skl compile m365 <skill>` produces `platforms/m365/declarative-agent.json` (with `version: "v<schema_version>"` matching the sidecar pin per SKL-009) plus `platforms/m365/instructions.md`. The manifest is validated against the bundled output schema before write.
+- [x] 8K budget enforced at compile time for both; over-budget compiles raise `BudgetExceededError` and exit 1.
+- [x] `skl budget` reports per-skill character usage versus the 8K cap as a deterministic table.
 
 ### Tasks
 
-- [ ] `src/skl/compile/copilot_studio.py` - T-C-R compiler. Inlines Identity + Tone, then Capabilities, Knowledge Sources (with `/<binding>` refs), Tools (`/<binding>` refs), Workflow, Output Format, Edge Cases, Examples.
-- [ ] `src/skl/compile/m365.py` - JSON manifest + instructions emission. Reads sidecar's `schema_version`; emits `version: "<pinned>"` in the manifest; loads the matching bundled schema for output validation.
-- [ ] `src/skl/budget.py` + `skl budget` verb: per-platform budget table; report character counts vs caps; expose `--all` for repo-wide check.
-- [ ] Compile-time budget enforcement helper used by both compilers.
-- [ ] Schema-version resolution: walk `_shared/schemas/platforms/m365/index.json`; error on missing, soft-warn on older-than-default, strong-warn on `deprecated` per SKL-009.
+- [x] Shared compile utilities extracted to `src/skl/compile/_transforms.py` (`FENCE_RE`, `split_frontmatter_and_body`, `remove_top_level_yaml_block`, `remove_h2_section`, `rewrite_binding_tokens`). All compilers now share the same primitives.
+- [x] `src/skl/compile/budget.py` - `PLATFORM_BUDGETS`, `BudgetExceededError`, `enforce_budget()` helper used by both Microsoft compilers.
+- [x] `src/skl/compile/copilot_studio.py` - canonical-section composition with Identity + Tone inlined as preamble; knowledge / tools tokens rewritten to `/<binding>` UI refs.
+- [x] `src/skl/compile/m365.py` - JSON manifest + instructions emission. Reads sidecar's `schema_version`; emits `version: "v<pinned>"`; loads the matching bundled schema for output validation; validates manifest before write.
+- [x] Schema-version resolution per SKL-009: error on missing, soft-warn on older-than-default, strong-warn on `deprecated`. Kit `_shared/schemas/platforms/m365/index.json` shadows the bundled copy.
+- [x] `src/skl/budget.py` + `skl budget` verb. Walks every skill x every budget-capped platform, builds a deterministic table.
 
 **Tests:**
 
-- [ ] `tests/test_compile_copilot_studio.py` - T-C-R section order; Identity surfaced; 8K budget enforced; binding refs rendered as `/<name>`.
-- [ ] `tests/test_compile_m365.py` - manifest validates against bundled schema; `version` field matches sidecar pin; missing-pin error; older-than-default warning; deprecated-version warning.
-- [ ] `tests/test_budget.py` - budget calculations across all platforms.
+- [x] `tests/test_compile_copilot_studio.py` (16 cases) - section order, Identity/Tone inlining, token rewrites, default + sidecar budget, dispatcher + CLI integration including budget-failure path.
+- [x] `tests/test_compile_m365.py` (20 cases) - manifest validation, version pin → manifest field mapping, Identity strip, bindings → capabilities/actions, conversation_starters string → object transform, passthrough fields, schema-version resolution (missing sidecar, missing field, unknown, deprecated warning, kit-index override), schema validation, 8K budget, dispatcher + CLI.
+- [x] `tests/test_budget.py` (16 cases) - empty repo, uncapped-platform skip, per-platform measurement, overage flagging, sidecar override, multi-skill multi-platform, unparseable-skill skip, render formatting, CLI happy / overage / no-capped paths.
+- [x] Total Stage 4 test surface: 52 new tests; 336 in the full suite; ruff + format clean.
 
 **Docs:**
 
-- [ ] Tighten `docs/spec/compilation.md` `copilot-studio` and `m365` sections.
-- [ ] `CHANGELOG.md` Unreleased entry.
+- [x] `docs/spec/compilation.md` `copilot-studio` and `m365` sections rewritten to match the implementation (section order, token rewrites, passthrough fields, schema resolution table, validation behaviour).
+- [x] `docs/spec/cli.md` `skl compile` Stage status (all six platforms done) + `skl budget` section fleshed out with example output and the per-platform budget table.
+- [x] `CHANGELOG.md` Unreleased entries covering all three parts of Stage 4.
 
 ### Out of scope for this stage
 
