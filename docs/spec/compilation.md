@@ -134,12 +134,31 @@ Transformations applied to the source SKILL.md before write:
 
 ### `vscode`
 
-Two emitted variants per SKL-007:
+Implemented in `skl.compile.vscode`. Two emitted variants per SKL-007, with emission gated by whether `<skill>/skl/platforms/vscode.yaml` exists and what it declares.
 
-- **Skill variant** at `platforms/vscode/skill/<name>/` (an Anthropic Agent Skill folder). Same byte-stream as `claude-code` / `claude-cowork`. Persona strips by default (per SKL-008). Emitted whenever `vscode` is in `enabled_platforms` unless the sidecar declares `emit_skill: false`.
-- **Custom Agent variant** at `platforms/vscode/agent/<name>.agent.md` (VS Code custom-agent format). Persona surfaces by default (per SKL-008). Emitted when `skl/platforms/vscode.yaml` sidecar exists. Frontmatter composition mapped in SKL-007.
+| Sidecar       | `emit_skill` | Skill variant | Custom Agent variant |
+|---------------|--------------|---------------|----------------------|
+| absent        | n/a          | yes           | no                   |
+| present       | `true` / -   | yes           | yes (default)        |
+| present       | `false`      | no            | yes                  |
 
-`.chatmode.md` is never emitted (per SKL-007).
+**Skill variant** at `platforms/vscode/skill/<name>/`:
+- Anthropic Agent Skill folder, **byte-identical to the `claude-code` output** for the same skill. The compiler reuses `skl.compile.skills_native.emit_skills_native` under the hood.
+- Persona strips by default (per SKL-008).
+
+**Custom Agent variant** at `platforms/vscode/agent/<name>.agent.md`:
+- Single VS Code custom-agent file. Provenance comment above the frontmatter fence (per SKL-006); composed frontmatter (per SKL-007's mapping table below); body retains `## Identity` (per SKL-008's Custom-Agent persona surfacing).
+
+Custom Agent frontmatter composition:
+
+| Field | Source |
+|-------|--------|
+| `name` | Master SKILL.md `name` |
+| `description` | Master SKILL.md `description` |
+| `target`, `model`, `agents`, `handoffs`, `hooks`, `mcp-servers`, `argument-hint`, `user-invocable`, `disable-model-invocation` | Sidecar; passed through verbatim if set |
+| `tools` | Composed from sidecar's `bindings.tools` values (sorted by skill tool ID for determinism) merged with the sidecar's explicit `tools:` array (preserving declaration order). Duplicates dropped on first occurrence |
+
+`.chatmode.md` is never emitted (per SKL-007 risk-row).
 
 - **Budget**: none enforced; warn above 50K chars on either variant.
 
