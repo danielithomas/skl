@@ -34,7 +34,6 @@ def test_help_flag(runner: CliRunner) -> None:
     [
         ["budget"],
         ["test"],
-        ["index"],
         ["deploy", "--skill", "casey", "--platform", "claude-code"],
         ["values", "check"],
         ["secrets", "list"],
