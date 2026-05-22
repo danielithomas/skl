@@ -118,42 +118,46 @@ Stages 5, 6, 7 depend on at least one compiler from Stage 2 existing - they can 
 
 ## Stage 2: Skills-native compile
 
+**Status: complete (PR `feat/stage-2-skills-native-compile`).**
+
 **User value:** "I can `skl compile claude-code <skill>` (or `claude-cowork` / `ms-cowork`) and get a working Anthropic Agent Skill in `platforms/<id>/<skill>/`."
 
 ### Acceptance criteria
 
-- [ ] `skl compile claude-code <skill-name>` produces `platforms/claude-code/<skill>/SKILL.md` (+ any `references/` / `scripts/` / `assets/` from source) with the `skl:` frontmatter block stripped per SKL-006.
-- [ ] Same compiler reused for `claude-cowork` and `ms-cowork`; output paths differ but bytes are identical.
-- [ ] Compiled SKILL.md leads with a `# Compiled by skl <version> from <source-path> on <YYYY-MM-DD>` provenance comment per SKL-006.
-- [ ] `## Identity` body section stripped per SKL-008.
-- [ ] `skl compile --all` compiles every skill in the repo for every platform in `enabled_platforms`.
-- [ ] `skl index` regenerates `skills/SKILLS_INDEX.md` from the current skill set.
+- [x] `skl compile claude-code <skill-name>` produces `platforms/claude-code/<skill>/SKILL.md` (+ any `references/` / `scripts/` / `assets/` from source) with the `skl:` frontmatter block stripped per SKL-006.
+- [x] Same compiler reused for `claude-cowork` and `ms-cowork`; output paths differ but bytes are identical (asserted by `test_skills_native_targets_byte_identical`).
+- [x] Compiled SKILL.md leads with a `# Compiled by skl <version> from <source-path> on <YYYY-MM-DD>` provenance comment per SKL-006.
+- [x] `## Identity` body section stripped per SKL-008.
+- [x] `skl compile` default behaviour compiles every skill in the repo for every platform in `enabled_platforms`; `--skill` / `--platform` flags filter.
+- [x] `skl index` regenerates `skills/SKILLS_INDEX.md` from the current skill set, deterministically.
 
 ### Tasks
 
-- [ ] `src/skl/compile/__init__.py` - new package. Public surface: `compile_skill(skill_root, platform_id) -> CompileResult`.
-- [ ] `src/skl/compile/ir.py` - intermediate representation. `ResolvedSkill` dataclass: parsed SKILL.md + merged sidecar(s) + resolved knowledge contracts. Built once per skill, consumed by per-platform compilers.
-- [ ] `src/skl/compile/skills_native.py` - one implementation for `claude-code`, `claude-cowork`, `ms-cowork`. Strips `skl:`, strips `## Identity` (per SKL-008), emits provenance line, copies sibling folders.
-- [ ] `src/skl/compile/provenance.py` - shared helper for the top-line comment used by every compiler (SKL-006).
-- [ ] `skl compile <platform>` CLI verb wired in. Supports per-skill (`--skill <name>`) and repo-wide (`--all`). Default `skl compile` with no args runs all enabled platforms for all skills.
-- [ ] `src/skl/index.py` + `skl index` verb: scans `skills/*/SKILL.md`, builds `skills/SKILLS_INDEX.md` table with skill name, description, enabled platforms, status / lifecycle.
+- [x] `src/skl/compile/__init__.py` - dispatcher + public surface (`build_ir`, `compile_skill`, `CompilerNotImplementedError`).
+- [x] `src/skl/compile/ir.py` - `ResolvedSkill` IR + `CompileResult` + `build_ir(skill_root, repo_root)`.
+- [x] `src/skl/compile/skills_native.py` - one implementation for the three Skills-native targets. Text-surgery transformations (`_remove_top_level_yaml_block`, `_remove_h2_section`) preserve author formatting outside the bits being rewritten. Copies sibling `references/` / `scripts/` / `assets/`; excludes `skl/` and `tests/`.
+- [x] `src/skl/compile/provenance.py` - SKL-006 top-line comment with `now` and `version` parameters for deterministic tests.
+- [x] `skl compile` CLI verb wired in. `--skill` / `--platform` / `--all` per spec; unimplemented platforms (vscode / copilot-studio / m365) report as `skip` with the stage pointer; unknown platforms / skills are errors.
+- [x] `src/skl/index.py` + `skl index` verb: deterministic markdown table; first-line / 120-char description summarisation; pipe escaping; empty-cell rendering.
 
 **Tests:**
 
-- [ ] `tests/test_compile_skills_native.py` - byte-identical output for the three targets; provenance line present; `skl:` block absent; `## Identity` absent.
-- [ ] `tests/test_compile_pipeline.py` - IR construction, sidecar merge, error paths (missing skill, unknown platform).
-- [ ] `tests/test_index.py` - SKILLS_INDEX.md regenerates deterministically.
+- [x] `tests/test_compile_skills_native.py` (25 cases) - happy path, byte-identical multi-target output, frontmatter / Identity strip, sibling-folder copy + exclusions, dispatcher routing, transformation-helper unit tests including code-fence edge case.
+- [x] `tests/test_compile_cli.py` (10 cases) - flag filtering, error paths, end-to-end smoke (init + compile).
+- [x] `tests/test_index.py` (14 cases) - structure, sort order, determinism, missing / empty skills dir, parse-error skipping, pipe escaping, long-description truncation, multi-line first-line-only, CLI integration.
+- [x] Total Stage 2 test surface: 49 new tests; 267 in the full suite; ruff + format clean.
 
 **Docs:**
 
-- [ ] Revise `docs/spec/compilation.md` per-platform sections for the three Skills-native targets to match the implementation.
-- [ ] Add a "How `skl compile` works" section (input/output contract, IR, deterministic output, provenance line).
-- [ ] `CHANGELOG.md` Unreleased entry.
+- [x] `docs/spec/compilation.md` - replaced three separate Skills-native sections with one unified section noting they share an implementation; added "How `skl compile` works" overview describing the IR + public surface + determinism guarantees; documented the SKL-006 provenance comment placement and the Anthropic-loader compatibility flag.
+- [x] `docs/spec/cli.md` - `skl compile` updated with stage status, exit codes, no-auto-validate clarification; `skl index` description fleshed out.
+- [x] `CHANGELOG.md` Unreleased entry covering Stage 2.
 
 ### Out of scope for this stage
 
-- VS Code (Stage 3); Copilot Studio / M365 (Stage 4).
+- VS Code (Stage 3); Copilot Studio / M365 (Stage 4) - dispatcher reports them as `skip`.
 - Variable substitution. Compiled output is template-form per D-007; tokens remain. Substitution happens at deploy (Stage 5).
+- Verifying SKL-006's "provenance above the fence" against Anthropic's actual loader. The implementation matches the decision; if real-world loader testing shows the leading comment breaks frontmatter parsing, SKL-006 will be amended to "first line inside the frontmatter as a YAML comment" - the implementation is set up for that one-line flip.
 
 ---
 

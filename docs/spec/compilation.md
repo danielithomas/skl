@@ -83,6 +83,20 @@ Steps 1-4 produce a normalised intermediate representation (IR). Each platform c
 
 ---
 
+## How `skl compile` works
+
+`skl.compile` is the implementation entry point. Public surface:
+
+- `build_ir(skill_root, repo_root) -> ResolvedSkill` - parses `SKILL.md` + any sidecars under `skl/platforms/` into the IR. Cheap; the IR carries the raw text so compilers that do text surgery preserve author formatting outside the bits they deliberately rewrite.
+- `compile_skill(ir, platform_id) -> CompileResult` - dispatcher. Routes Skills-native targets (`claude-code` / `claude-cowork` / `ms-cowork`) to `compile_skills_native`; raises `CompilerNotImplementedError` for `vscode` (Stage 3) and `copilot-studio` / `m365` (Stage 4); raises `ValueError` for unknown platforms.
+- `provenance_comment(source_relpath, *, now, version)` - the SKL-006 top-line comment. Takes `now` and `version` parameters so tests pin them.
+
+`CompileResult` carries `skill_name`, `platform_id`, `output_root`, `files_written`, `warnings`. The CLI uses it to print per-target output lines and the run summary.
+
+Determinism: same input set + pinned date / version produces byte-identical output. Compilers do not perform value substitution (D-007); tokens like `{{variables.x}}` and `{{knowledge.id}}` remain in compiled artefacts and are resolved at deploy time.
+
+---
+
 ## Per-platform compilers
 
 ### `copilot-studio`
@@ -101,26 +115,22 @@ Steps 1-4 produce a normalised intermediate representation (IR). Each platform c
 - **Tool / knowledge bindings**: rendered into the manifest's `actions[]` and `capabilities[]` arrays as platform-specific identifiers.
 - **Schema version**: pinned per-skill in `skl/platforms/m365.yaml` via `schema_version: "1.7"` (or whichever version the skill targets). The pin is mandatory; the compiler emits `version: "<pinned-version>"` into the manifest. Bundled output schemas live in `_shared/schemas/platforms/m365/declarative-agent-manifest-<v>.json` with an `index.json` declaring supported / default / deprecated versions. See [SKL-009](../decisions/SKL-009-m365-schema-versioning.md) for the resolution rules and how new Microsoft schema releases reach the kit.
 
-### `ms-cowork`
+### Skills-native targets: `claude-code`, `claude-cowork`, `ms-cowork`
 
-- **Output**: `platforms/ms-cowork/<name>.md`.
+One compiler implementation serves all three platforms (`skl.compile.skills_native`). Compile is essentially a filesystem copy with two text transformations.
+
+- **Output**: Anthropic Agent Skill folder at `platforms/<id>/<name>/`. Includes `SKILL.md` plus any sibling `references/` / `scripts/` / `assets/` folders copied verbatim from source. `skl/` (sidecars) and `tests/` (fixtures) are authoring-only and NOT copied.
+- **Output bytes are identical across the three targets.** Only the destination path differs - `platforms/claude-code/<name>/SKILL.md` is byte-for-byte the same as `platforms/ms-cowork/<name>/SKILL.md`. Useful for diff-based audits.
 - **Budget**: none enforced; warn above 50K chars.
-- **Persona**: strips by default (per SKL-008).
-- **Implementation**: Skills-native consumer; compile is essentially a copy of the Anthropic Agent Skill folder. The earlier "delegates to the claude-cowork compiler" model was superseded by SKL-004's Skills-native compile path.
+- **Persona**: strips by default (per SKL-008). Claude is the persona on these surfaces; an authored persona is noise.
 
-### `claude-code`
+Transformations applied to the source SKILL.md before write:
 
-- **Output**: Anthropic Agent Skill folder at `platforms/claude-code/<name>/`, including `SKILL.md` with `skl:` frontmatter block stripped (per SKL-006) and a top-line provenance comment.
-- **Budget**: none enforced; warn above 50K chars.
-- **Persona**: strips by default (per SKL-008). Claude is the persona on this surface.
-- **Knowledge sources**: rendered as file references in `references/` per Anthropic Skills convention.
+1. **Strip the `skl:` frontmatter block** (per SKL-006). Text surgery on the frontmatter; non-`skl` fields keep their original formatting, comment placement, and key order.
+2. **Strip the `## Identity` body section** (per SKL-008). Section removed from its H2 heading to the next H2 (or EOF); the rest of the body is byte-identical to source.
+3. **Prepend the provenance comment** (per SKL-006). First line of the compiled file is `# Compiled by skl <version> from <source-relpath> on <YYYY-MM-DD>`; line 2 is the opening `---` frontmatter fence.
 
-### `claude-cowork`
-
-- **Output**: Anthropic Agent Skill folder at `platforms/claude-cowork/<name>/`, same shape as `claude-code`.
-- **Budget**: none enforced; warn above 50K chars.
-- **Persona**: strips by default (per SKL-008).
-- **Notes**: the canonical Cowork compiler; the `ms-cowork` compiler delegates here.
+> **Note on the provenance comment placement.** Putting a comment above the `---` fence means downstream tools that strictly require frontmatter on line 1 (most generic Python / JS frontmatter libraries) will not find the fence. Anthropic's loader has not yet been verified against this layout. If it turns out to be strict, SKL-006 will be amended to "first line inside the frontmatter as a YAML comment" - the implementation is set up so flipping this is a one-line change in `compile/skills_native.py`.
 
 ### `vscode`
 
