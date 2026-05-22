@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from skl import shared
+from skl import manifest, shared
 from skl.cli import main
 from skl.init import init_repo
 
@@ -111,9 +111,12 @@ def test_sync_repo_scoped_populates_shared_and_updates_manifest(tmp_path: Path) 
     assert (host / "_shared" / "skill.config.yaml").is_file()
     assert (host / "_shared" / ".kit_version").read_text().strip() == "1.0.0"
 
-    manifest_text = (host / "skill-repo.yaml").read_text()
-    assert f"pinned_sha: {sha}" in manifest_text
-    assert 'version: "1.0.0"' in manifest_text
+    # Assert the parsed value, not the raw text: ruamel quotes any SHA that
+    # could be parsed as a YAML 1.1 float (e.g. `298445e73142` looks like
+    # scientific notation), so substring-matching on the dumped text is flaky.
+    data = manifest.load(host / "skill-repo.yaml")
+    assert data["shared_kit"]["pinned_sha"] == sha
+    assert data["shared_kit"]["version"] == "1.0.0"
 
 
 def test_sync_repo_scoped_resolves_latest_sentinel(tmp_path: Path) -> None:
