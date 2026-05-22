@@ -11,30 +11,32 @@ Public surface:
 - :class:`CompileResult` / :class:`CompilerNotImplementedError` - return /
   error types.
 
-Compilers covered as of Stage 3:
+Compilers covered as of Stage 4:
 
 - ``claude-code``, ``claude-cowork``, ``ms-cowork`` - Skills-native targets
-  (Stage 2). All three share one implementation in
-  :mod:`skl.compile.skills_native`; output bytes are byte-identical across
-  the three, only the output path differs. Frontmatter ``skl:`` block
-  stripped (SKL-006); ``## Identity`` body section stripped (SKL-008);
-  top-line provenance comment per SKL-006.
-- ``vscode`` - emits one or both of a Skill variant (Skills-native bytes,
-  written to ``platforms/vscode/skill/<name>/``) and a Custom Agent variant
-  (``platforms/vscode/agent/<name>.agent.md``). Gated by the
-  ``skl/platforms/vscode.yaml`` sidecar per SKL-007.
+  (Stage 2). Output bytes are byte-identical across the three.
+- ``vscode`` - emits Skill variant and/or Custom Agent variant per SKL-007
+  (Stage 3).
+- ``copilot-studio`` - Copilot Studio instructions field (8K-budget hard
+  cap, T-C-R composition with Identity surfaced, knowledge/tools tokens
+  rewritten to ``/<binding>`` references). See :mod:`skl.compile.copilot_studio`.
 
-Copilot Studio / M365 (Stage 4) still raise :class:`CompilerNotImplementedError`.
+M365 lands in the second half of Stage 4 (declarative-agent manifest +
+SKL-009 schema-version resolution) and still raises
+:class:`CompilerNotImplementedError`.
 """
 
 from __future__ import annotations
 
+from skl.compile.budget import BudgetExceededError
+from skl.compile.copilot_studio import COPILOT_STUDIO_PLATFORM, compile_copilot_studio
 from skl.compile.ir import CompileResult, ResolvedSkill, build_ir
 from skl.compile.provenance import provenance_comment
 from skl.compile.skills_native import SKILLS_NATIVE_PLATFORMS, compile_skills_native
 from skl.compile.vscode import VSCODE_PLATFORM, compile_vscode
 
 __all__ = [
+    "BudgetExceededError",
     "CompileResult",
     "CompilerNotImplementedError",
     "ResolvedSkill",
@@ -64,6 +66,8 @@ def compile_skill(ir: ResolvedSkill, platform_id: str) -> CompileResult:
         return compile_skills_native(ir, platform_id)
     if platform_id == VSCODE_PLATFORM:
         return compile_vscode(ir)
-    if platform_id in {"copilot-studio", "m365"}:
-        raise CompilerNotImplementedError(f"compiler for {platform_id!r} lands in Stage 4")
+    if platform_id == COPILOT_STUDIO_PLATFORM:
+        return compile_copilot_studio(ir)
+    if platform_id == "m365":
+        raise CompilerNotImplementedError(f"compiler for {platform_id!r} lands later in Stage 4")
     raise ValueError(f"unknown platform {platform_id!r}")

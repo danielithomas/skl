@@ -26,11 +26,15 @@ authoring concerns, not part of the consumed artefact.
 
 from __future__ import annotations
 
-import re
 import shutil
 from datetime import date
 from pathlib import Path
 
+from skl.compile._transforms import (
+    remove_h2_section,
+    remove_top_level_yaml_block,
+    split_frontmatter_and_body,
+)
 from skl.compile.ir import CompileResult, ResolvedSkill
 from skl.compile.provenance import provenance_comment
 
@@ -38,9 +42,6 @@ SKILLS_NATIVE_PLATFORMS: frozenset[str] = frozenset({"claude-code", "claude-cowo
 
 # Sibling folders copied verbatim into the output root.
 _SIBLING_COPY_DIRS: tuple[str, ...] = ("references", "scripts", "assets")
-
-_FENCE_RE = re.compile(r"\A(---\s*\n)(.*?\n)(---\s*\n?)", re.DOTALL)
-_H2_LINE_RE = re.compile(r"^## (.+?)\s*$")
 
 
 def compile_skills_native(
@@ -109,83 +110,8 @@ def emit_skills_native(
 
 def _build_compiled_skill_md(ir: ResolvedSkill, *, now: date | None = None) -> str:
     """Apply SKL-006 / SKL-008 transformations and return the compiled file text."""
-    raw = ir.skill.raw_text
-    fence_match = _FENCE_RE.match(raw)
-    if fence_match is None:
-        raise ValueError(
-            f"source {ir.source_skill_md} has no YAML frontmatter fence; "
-            "this should have been caught by `skl validate` before compile"
-        )
-    open_fence = fence_match.group(1)
-    fm_text = fence_match.group(2)
-    close_fence = fence_match.group(3)
-    body = raw[fence_match.end() :]
-
-    fm_text = _remove_top_level_yaml_block(fm_text, "skl")
-    body = _remove_h2_section(body, "Identity")
-
+    open_fence, fm_text, close_fence, body = split_frontmatter_and_body(ir.skill.raw_text)
+    fm_text = remove_top_level_yaml_block(fm_text, "skl")
+    body = remove_h2_section(body, "Identity")
     prov = provenance_comment(ir.source_relpath, now=now)
     return f"{prov}\n{open_fence}{fm_text}{close_fence}{body}"
-
-
-def _remove_top_level_yaml_block(fm_text: str, key: str) -> str:
-    """Remove a top-level YAML mapping by its key (and all indented children).
-
-    Detects the key as a line at column 0 matching ``<key>:``. Children are
-    consecutive indented or blank lines; the block ends at the next column-0
-    non-blank line (the next top-level key) or end-of-frontmatter. If the
-    key is not found, the text is returned unchanged.
-    """
-    lines = fm_text.splitlines(keepends=True)
-    key_re = re.compile(rf"^{re.escape(key)}\s*:")
-    start: int | None = None
-    end = len(lines)
-    for i, line in enumerate(lines):
-        if key_re.match(line):
-            start = i
-            break
-    if start is None:
-        return fm_text
-    for i in range(start + 1, len(lines)):
-        line = lines[i]
-        if line.strip() == "":
-            continue
-        if not line.startswith((" ", "\t")):
-            end = i
-            break
-    return "".join(lines[:start] + lines[end:])
-
-
-def _remove_h2_section(body: str, name: str) -> str:
-    """Remove an H2 section by heading (case-insensitive).
-
-    The section is removed from the ``## Name`` line through (but not
-    including) the next H2 line, or end-of-body. H2 lines inside fenced code
-    blocks are not treated as section starts. If the section is not found,
-    the body is returned unchanged.
-    """
-    target = name.lower().strip()
-    lines = body.splitlines(keepends=True)
-    in_code = False
-    start: int | None = None
-    end: int | None = None
-    for i, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
-            in_code = not in_code
-            continue
-        if in_code:
-            continue
-        match = _H2_LINE_RE.match(line)
-        if not match:
-            continue
-        heading = match.group(1).strip().lower()
-        if start is None and heading == target:
-            start = i
-        elif start is not None:
-            end = i
-            break
-    if start is None:
-        return body
-    if end is None:
-        end = len(lines)
-    return "".join(lines[:start] + lines[end:])

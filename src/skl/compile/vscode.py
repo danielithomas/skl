@@ -26,12 +26,12 @@ The provenance comment sits above the frontmatter fence (per SKL-006).
 
 from __future__ import annotations
 
-import re
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from skl import manifest
+from skl.compile._transforms import split_frontmatter_and_body
 from skl.compile.ir import CompileResult, ResolvedSkill
 from skl.compile.provenance import provenance_comment
 from skl.compile.skills_native import emit_skills_native
@@ -50,8 +50,6 @@ _PASSTHROUGH_FIELDS: tuple[str, ...] = (
     "user-invocable",
     "disable-model-invocation",
 )
-
-_FENCE_RE = re.compile(r"\A(---\s*\n)(.*?\n)(---\s*\n?)", re.DOTALL)
 
 
 def compile_vscode(
@@ -111,14 +109,7 @@ def _build_custom_agent_md(
     - Remaining: the source SKILL.md body verbatim (Identity retained
       per SKL-008's Custom-Agent-surface persona default).
     """
-    raw = ir.skill.raw_text
-    fence_match = _FENCE_RE.match(raw)
-    if fence_match is None:
-        raise ValueError(
-            f"source {ir.source_skill_md} has no YAML frontmatter fence; "
-            "this should have been caught by `skl validate` before compile"
-        )
-    body = raw[fence_match.end() :]
+    _open, _fm, _close, body = split_frontmatter_and_body(ir.skill.raw_text)
 
     frontmatter = _compose_custom_agent_frontmatter(ir, sidecar_data)
     frontmatter_yaml = manifest.dumps(frontmatter)
