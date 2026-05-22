@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+Stage 2 (Skills-native compile) - the first working `skl compile`. Single implementation in `skl.compile.skills_native` serves all three targets (`claude-code`, `claude-cowork`, `ms-cowork`); output bytes are byte-identical across the three, only the destination path differs.
+
+- **`skl compile`** CLI verb. Default: every skill x every `enabled_platforms` entry. `--skill <name>` / `--platform <id>` filter. `vscode` / `copilot-studio` / `m365` raise `CompilerNotImplementedError` and report as `skip` with a pointer to the stage they land in. Exit codes: 0 (skips allowed) / 1 (any error).
+- **`skl.compile` package** with: `ir.py` (`ResolvedSkill` IR + `CompileResult` + `build_ir`), `provenance.py` (SKL-006 top-line comment helper, parametrised on `now` / `version` for deterministic tests), `skills_native.py` (the actual compiler), and `__init__.py` (`compile_skill` dispatcher + `CompilerNotImplementedError`).
+- **Skills-native compile transformations** (text-surgery; preserves author formatting outside the deliberate rewrites): strips the `skl:` frontmatter block (SKL-006), strips the `## Identity` body section (SKL-008), prepends the provenance comment, copies sibling `references/` / `scripts/` / `assets/`. Excludes `skl/` (sidecars) and `tests/` (fixtures) - authoring-only.
+- **`skl index`** CLI verb + `src/skl/index.py`. Deterministic markdown table at `skills/SKILLS_INDEX.md`; sorted by skill name; column set Name / Display / Status / Lifecycle / Platforms / Description. Description summarised to first line, ≤120 chars; pipes escaped; empty cells render as `-`. Re-run from CI to detect drift from the committed index.
+
 Stage 1 (authoring foundation) - schemas, parsing, full `skl validate`, repo-scoped `skl init`, `skl lint`. See [docs/plan.md](docs/plan.md) for the v0.1 roadmap.
 
 - **Bundled schemas** under `src/skl/schemas/` per [SKL-004](docs/decisions/SKL-004-master-skill-md-posture.md) and [SKL-009](docs/decisions/SKL-009-m365-schema-versioning.md): `skill.frontmatter.schema.json` (Anthropic base + `skl:` block), `platforms/{copilot-studio,m365,vscode}.schema.json` (sidecar input), `platforms/m365/declarative-agent-manifest-1.7.json` (M365 compiled-output baseline), `platforms/m365/index.json` (kit version index). `skl.schemas.load_schema(name)` for nested-path access.

@@ -122,16 +122,27 @@ Exit codes: 0 (pass), 1 (validation failure), 4 (compatibility failure).
 
 ### `skl compile`
 
-Compile each SKILL.md into platform-specific artefacts written under the skill's `platforms/` directory.
+Compile each SKILL.md into platform-specific artefacts written under the repo's `platforms/<platform-id>/<skill>/` directory.
 
 ```
 skl compile [--skill <kebab-name>] [--platform <platform-id>] [--all]
 ```
 
-- Runs `skl validate` first; aborts on errors unless `--force` is passed.
-- For each `enabled_platforms` entry in the manifest, the corresponding compiler in `compilation.md` runs.
+- **Default behaviour**: compile every skill for every platform in its `enabled_platforms`. The `--all` flag is accepted as a spec-compat no-op.
+- `--skill <name>` filters to a single skill.
+- `--platform <id>` filters to a single platform.
+- For each `enabled_platforms` entry, the matching compiler in [`compilation.md`](./compilation.md) runs.
 - Artefacts are written in **template form** (per D-007): `{{variables.x}}` and `{{knowledge.id}}` tokens remain unresolved. Substitution happens at deploy time, not compile time.
 - The output is committed to the repo (D-001), giving non-developer colleagues a directly consumable build.
+- Compile does **not** auto-run `skl validate` - run that yourself before compile if the manifest / SKILL.md is in flux. Compile-time errors will still surface for malformed input, but `skl validate` gives the full picture.
+
+Stage status (per [`docs/plan.md`](../plan.md)):
+
+- v0.1 ships Skills-native compile for `claude-code` / `claude-cowork` / `ms-cowork` (one implementation, byte-identical output across the three, per SKL-006 + SKL-008).
+- `vscode` lands in Stage 3 (Skill + Custom Agent variants per SKL-007).
+- `copilot-studio` and `m365` land in Stage 4. Until then, targeting them reports `skip` with a pointer to the relevant stage; the run exits 0 with the skipped count in the summary.
+
+Exit codes: 0 if no errors (skips allowed); 1 if any compiler errored.
 
 ---
 
@@ -181,7 +192,11 @@ Regenerate `skills/SKILLS_INDEX.md` from the current set of skills.
 skl index
 ```
 
-Lists every skill by `display_name`, `name`, status, lifecycle phase, and a one-line summary. Grouped by lifecycle phase (e.g. `business_development`, `bid`, `delivery_run`).
+Writes a deterministic markdown table - one row per skill, sorted by skill name - with columns: Name, Display, Status, Lifecycle, Platforms, Description. The file is intended to be checked in. Skills whose SKILL.md fails to parse are skipped silently; run `skl validate` to surface those errors.
+
+Description summarisation: only the first line of the description is shown; pipes are escaped (`\|`); long lines are truncated at 120 chars with an ellipsis. Empty cells render as `-` for visual scannability.
+
+Determinism: same input set produces byte-identical output. Re-run from CI to detect divergence from a committed index.
 
 ---
 
