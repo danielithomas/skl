@@ -19,6 +19,7 @@ from skl.compile import (
     build_ir,
     compile_skill,
 )
+from skl.index import regenerate_index
 from skl.init import (
     DEFAULT_SHARED_KIT_SOURCE,
     DEFAULT_SHARED_KIT_VERSION,
@@ -381,8 +382,20 @@ def test(all_: bool, mock: bool) -> None:
 
 @main.command()
 def index() -> None:
-    """Regenerate skills/SKILLS_INDEX.md from the current skill set."""
-    raise NotImplementedError(f"skl index is not implemented yet. {SPEC_REFERENCE}")
+    """Regenerate skills/SKILLS_INDEX.md from the current skill set.
+
+    Walks every ``skills/<name>/SKILL.md`` and writes a deterministic
+    markdown table to ``skills/SKILLS_INDEX.md``. Same input set produces
+    byte-identical output; re-run from CI to detect divergence.
+    """
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        raise click.ClickException("not inside a skill-host repo")
+    try:
+        path = regenerate_index(repo_root)
+    except FileNotFoundError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"wrote {path.relative_to(repo_root)}", err=True)
 
 
 @main.command()
