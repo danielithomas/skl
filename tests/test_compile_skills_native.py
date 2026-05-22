@@ -239,8 +239,9 @@ def test_dispatcher_routes_skills_native(tmp_path: Path) -> None:
     assert (result.output_root / "SKILL.md").is_file()
 
 
-@pytest.mark.parametrize("platform", ["vscode", "copilot-studio", "m365"])
+@pytest.mark.parametrize("platform", ["copilot-studio", "m365"])
 def test_dispatcher_raises_for_unbuilt_platforms(tmp_path: Path, platform: str) -> None:
+    """VS Code is implemented in Stage 3; Copilot Studio / M365 still pending."""
     repo = _make_repo(tmp_path)
     _make_skill(repo, "demo", _full_skill_md())
     ir = build_ir(repo / "skills" / "demo", repo)

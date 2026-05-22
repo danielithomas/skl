@@ -11,16 +11,20 @@ Public surface:
 - :class:`CompileResult` / :class:`CompilerNotImplementedError` - return /
   error types.
 
-Compilers covered in v0.1 / Stage 2:
+Compilers covered as of Stage 3:
 
-- ``claude-code``, ``claude-cowork``, ``ms-cowork`` - Skills-native targets.
-  All three share one implementation in :mod:`skl.compile.skills_native`;
-  output bytes are byte-identical across the three, only the output path
-  differs. Frontmatter ``skl:`` block stripped (SKL-006); ``## Identity``
-  body section stripped (SKL-008); top-line provenance comment per SKL-006.
+- ``claude-code``, ``claude-cowork``, ``ms-cowork`` - Skills-native targets
+  (Stage 2). All three share one implementation in
+  :mod:`skl.compile.skills_native`; output bytes are byte-identical across
+  the three, only the output path differs. Frontmatter ``skl:`` block
+  stripped (SKL-006); ``## Identity`` body section stripped (SKL-008);
+  top-line provenance comment per SKL-006.
+- ``vscode`` - emits one or both of a Skill variant (Skills-native bytes,
+  written to ``platforms/vscode/skill/<name>/``) and a Custom Agent variant
+  (``platforms/vscode/agent/<name>.agent.md``). Gated by the
+  ``skl/platforms/vscode.yaml`` sidecar per SKL-007.
 
-The remaining compilers (VS Code per SKL-007 in Stage 3; Copilot Studio /
-M365 per SKL-009 in Stage 4) raise :class:`CompilerNotImplementedError`.
+Copilot Studio / M365 (Stage 4) still raise :class:`CompilerNotImplementedError`.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from __future__ import annotations
 from skl.compile.ir import CompileResult, ResolvedSkill, build_ir
 from skl.compile.provenance import provenance_comment
 from skl.compile.skills_native import SKILLS_NATIVE_PLATFORMS, compile_skills_native
+from skl.compile.vscode import VSCODE_PLATFORM, compile_vscode
 
 __all__ = [
     "CompileResult",
@@ -51,14 +56,14 @@ def compile_skill(ir: ResolvedSkill, platform_id: str) -> CompileResult:
     """Dispatch one (skill, platform) pair to its compiler.
 
     Skills-native targets (claude-code / claude-cowork / ms-cowork) share
-    :func:`compile_skills_native`. VS Code, Copilot Studio, and M365 raise
-    :class:`CompilerNotImplementedError` pending Stages 3 / 4.
+    :func:`compile_skills_native`. VS Code routes to :func:`compile_vscode`
+    (may emit two variants per SKL-007). Copilot Studio and M365 raise
+    :class:`CompilerNotImplementedError` pending Stage 4.
     """
     if platform_id in SKILLS_NATIVE_PLATFORMS:
         return compile_skills_native(ir, platform_id)
-    if platform_id in {"vscode", "copilot-studio", "m365"}:
-        raise CompilerNotImplementedError(
-            f"compiler for {platform_id!r} lands in a later stage "
-            "(VS Code: Stage 3; Copilot Studio / M365: Stage 4)"
-        )
+    if platform_id == VSCODE_PLATFORM:
+        return compile_vscode(ir)
+    if platform_id in {"copilot-studio", "m365"}:
+        raise CompilerNotImplementedError(f"compiler for {platform_id!r} lands in Stage 4")
     raise ValueError(f"unknown platform {platform_id!r}")
