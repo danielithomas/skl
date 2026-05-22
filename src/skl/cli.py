@@ -14,6 +14,7 @@ from pathlib import Path
 import click
 
 from skl import __version__
+from skl.budget import budget_report, render_report
 from skl.compile import (
     CompilerNotImplementedError,
     build_ir,
@@ -366,10 +367,30 @@ def compile(
 
 
 @main.command()
-@click.option("--all", "all_", is_flag=True, help="Check budget for every skill.")
+@click.option(
+    "--all",
+    "all_",
+    is_flag=True,
+    help="Accepted for spec compatibility; the default already reports every skill.",
+)
 def budget(all_: bool) -> None:
-    """Report character usage versus per-platform budget (8K for Copilot Studio)."""
-    raise NotImplementedError(f"skl budget is not implemented yet. {SPEC_REFERENCE}")
+    """Report character usage versus per-platform budget (8K for Copilot Studio + M365).
+
+    Walks every skill in the repo and computes the would-be compiled
+    instructions length for each enabled budget-capped platform
+    (Copilot Studio + M365). Skills-native and VS Code targets are
+    uncapped and are not shown.
+
+    Exit codes: 0 if no overages; 1 if any (skill, platform) pair
+    exceeds its cap.
+    """
+    repo_root = find_skill_repo_root(Path.cwd())
+    if repo_root is None:
+        raise click.ClickException("not inside a skill-host repo")
+    report = budget_report(repo_root)
+    click.echo(render_report(report), err=True, nl=False)
+    if report.has_overages:
+        raise SystemExit(1)
 
 
 @main.command()
