@@ -18,12 +18,18 @@ Compilers covered as of Stage 4:
 - ``vscode`` - emits Skill variant and/or Custom Agent variant per SKL-007
   (Stage 3).
 - ``copilot-studio`` - Copilot Studio instructions field (8K-budget hard
-  cap, T-C-R composition with Identity surfaced, knowledge/tools tokens
-  rewritten to ``/<binding>`` references). See :mod:`skl.compile.copilot_studio`.
+  cap, canonical-section composition with Identity surfaced,
+  knowledge/tools tokens rewritten to ``/<binding>`` references). See
+  :mod:`skl.compile.copilot_studio`.
+- ``m365`` - declarative-agent manifest + instructions per SKL-009.
+  Schema-version pin mandatory; schema resolution via the kit's
+  ``index.json``; compiled manifest validated against the per-version
+  schema before write. 8K hard budget on the instructions field. See
+  :mod:`skl.compile.m365`.
 
-M365 lands in the second half of Stage 4 (declarative-agent manifest +
-SKL-009 schema-version resolution) and still raises
-:class:`CompilerNotImplementedError`.
+All six v0.1 platforms now compile. :class:`CompilerNotImplementedError`
+is no longer raised for any of them; the class remains for future
+deferred targets.
 """
 
 from __future__ import annotations
@@ -31,6 +37,7 @@ from __future__ import annotations
 from skl.compile.budget import BudgetExceededError
 from skl.compile.copilot_studio import COPILOT_STUDIO_PLATFORM, compile_copilot_studio
 from skl.compile.ir import CompileResult, ResolvedSkill, build_ir
+from skl.compile.m365 import M365_PLATFORM, M365SchemaError, compile_m365
 from skl.compile.provenance import provenance_comment
 from skl.compile.skills_native import SKILLS_NATIVE_PLATFORMS, compile_skills_native
 from skl.compile.vscode import VSCODE_PLATFORM, compile_vscode
@@ -39,6 +46,7 @@ __all__ = [
     "BudgetExceededError",
     "CompileResult",
     "CompilerNotImplementedError",
+    "M365SchemaError",
     "ResolvedSkill",
     "build_ir",
     "compile_skill",
@@ -68,6 +76,6 @@ def compile_skill(ir: ResolvedSkill, platform_id: str) -> CompileResult:
         return compile_vscode(ir)
     if platform_id == COPILOT_STUDIO_PLATFORM:
         return compile_copilot_studio(ir)
-    if platform_id == "m365":
-        raise CompilerNotImplementedError(f"compiler for {platform_id!r} lands later in Stage 4")
+    if platform_id == M365_PLATFORM:
+        return compile_m365(ir)
     raise ValueError(f"unknown platform {platform_id!r}")

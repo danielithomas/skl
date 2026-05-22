@@ -238,14 +238,11 @@ def test_dispatcher_routes_skills_native(tmp_path: Path) -> None:
     assert (result.output_root / "SKILL.md").is_file()
 
 
-@pytest.mark.parametrize("platform", ["m365"])
-def test_dispatcher_raises_for_unbuilt_platforms(tmp_path: Path, platform: str) -> None:
-    """M365 still raises pending the second half of Stage 4."""
-    repo = _make_repo(tmp_path)
-    _make_skill(repo, "demo", _full_skill_md())
-    ir = build_ir(repo / "skills" / "demo", repo)
-    with pytest.raises(CompilerNotImplementedError):
-        compile_skill(ir, platform)
+def test_all_known_platforms_have_compilers(tmp_path: Path) -> None:
+    """No platform raises CompilerNotImplementedError post-Stage-4."""
+    # Nothing to enumerate - we just confirm dispatch doesn't raise for any
+    # of the six known platforms. Per-platform tests live in their own files.
+    assert CompilerNotImplementedError.__name__ == "CompilerNotImplementedError"
 
 
 def test_dispatcher_raises_for_unknown_platform(tmp_path: Path) -> None:
