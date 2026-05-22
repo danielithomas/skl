@@ -12,10 +12,9 @@ from skl.compile import (
     build_ir,
     compile_skill,
 )
+from skl.compile._transforms import remove_h2_section, remove_top_level_yaml_block
 from skl.compile.skills_native import (
     SKILLS_NATIVE_PLATFORMS,
-    _remove_h2_section,
-    _remove_top_level_yaml_block,
     compile_skills_native,
 )
 
@@ -239,9 +238,9 @@ def test_dispatcher_routes_skills_native(tmp_path: Path) -> None:
     assert (result.output_root / "SKILL.md").is_file()
 
 
-@pytest.mark.parametrize("platform", ["copilot-studio", "m365"])
+@pytest.mark.parametrize("platform", ["m365"])
 def test_dispatcher_raises_for_unbuilt_platforms(tmp_path: Path, platform: str) -> None:
-    """VS Code is implemented in Stage 3; Copilot Studio / M365 still pending."""
+    """M365 still raises pending the second half of Stage 4."""
     repo = _make_repo(tmp_path)
     _make_skill(repo, "demo", _full_skill_md())
     ir = build_ir(repo / "skills" / "demo", repo)
@@ -279,43 +278,43 @@ def test_skill_without_identity_section_compiles(tmp_path: Path) -> None:
 
 def test_remove_top_level_yaml_block_basic() -> None:
     text = "name: x\nskl:\n  a: 1\n  b: 2\nfoo: y\n"
-    out = _remove_top_level_yaml_block(text, "skl")
+    out = remove_top_level_yaml_block(text, "skl")
     assert out == "name: x\nfoo: y\n"
 
 
 def test_remove_top_level_yaml_block_at_end() -> None:
     text = "name: x\nskl:\n  a: 1\n"
-    out = _remove_top_level_yaml_block(text, "skl")
+    out = remove_top_level_yaml_block(text, "skl")
     assert out == "name: x\n"
 
 
 def test_remove_top_level_yaml_block_absent_is_noop() -> None:
     text = "name: x\nfoo: y\n"
-    out = _remove_top_level_yaml_block(text, "skl")
+    out = remove_top_level_yaml_block(text, "skl")
     assert out == text
 
 
 def test_remove_top_level_yaml_block_preserves_other_indentation() -> None:
     text = "name: x\nother:\n    deeply: nested\nskl:\n  a: 1\nfoo: y\n"
-    out = _remove_top_level_yaml_block(text, "skl")
+    out = remove_top_level_yaml_block(text, "skl")
     assert out == "name: x\nother:\n    deeply: nested\nfoo: y\n"
 
 
 def test_remove_h2_section_basic() -> None:
     body = "intro\n\n## Identity\npersona\n\n## Capabilities\ncap\n"
-    out = _remove_h2_section(body, "Identity")
+    out = remove_h2_section(body, "Identity")
     assert out == "intro\n\n## Capabilities\ncap\n"
 
 
 def test_remove_h2_section_case_insensitive() -> None:
     body = "## IDENTITY\nx\n## Capabilities\ny\n"
-    out = _remove_h2_section(body, "Identity")
+    out = remove_h2_section(body, "Identity")
     assert "IDENTITY" not in out
 
 
 def test_remove_h2_section_inside_code_fence_preserved() -> None:
     body = "## Identity\nyou are\n```\n## Identity\nfake\n```\n## Capabilities\nc\n"
-    out = _remove_h2_section(body, "Identity")
+    out = remove_h2_section(body, "Identity")
     # The real Identity goes, but its replacement starts a section that contains
     # the entire fenced block (the fenced ## Identity is not a section start).
     # Expected: leading ## Identity (real one) is consumed; next H2 is Capabilities.
@@ -327,5 +326,5 @@ def test_remove_h2_section_inside_code_fence_preserved() -> None:
 
 def test_remove_h2_section_absent_is_noop() -> None:
     body = "## Capabilities\ncap\n## Workflow\nwf\n"
-    out = _remove_h2_section(body, "Identity")
+    out = remove_h2_section(body, "Identity")
     assert out == body
