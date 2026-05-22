@@ -40,6 +40,18 @@ def save(data: Any, path: Path) -> None:
         _yaml.dump(data, f)
 
 
+def dumps(data: Any) -> str:
+    """Serialise a Python object to YAML and return the string.
+
+    Counterpart to :func:`loads`. Used when emitting fresh YAML to a
+    compiled artefact (e.g. the VS Code Custom Agent frontmatter)
+    rather than round-tripping a loaded file.
+    """
+    buf = StringIO()
+    _yaml.dump(data, buf)
+    return buf.getvalue()
+
+
 def to_plain(obj: Any) -> Any:
     """Convert ruamel CommentedMap / CommentedSeq trees to plain dict / list.
 

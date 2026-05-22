@@ -62,12 +62,33 @@ def compile_skills_native(
         )
 
     output_root = ir.repo_root / "platforms" / platform_id / ir.name
-    output_root.mkdir(parents=True, exist_ok=True)
+    files_written = emit_skills_native(ir, output_root, now=now)
 
+    return CompileResult(
+        skill_name=ir.name,
+        platform_id=platform_id,
+        output_root=output_root,
+        files_written=files_written,
+    )
+
+
+def emit_skills_native(
+    ir: ResolvedSkill,
+    output_root: Path,
+    *,
+    now: date | None = None,
+) -> list[Path]:
+    """Write the Skills-native artefact (compiled SKILL.md + siblings) to ``output_root``.
+
+    Returns the list of files written. The output bytes are deterministic
+    given the same IR and ``now`` - any caller that needs the Skills-native
+    transformations (the dispatcher's main path, or the VS Code Skill
+    variant in :mod:`skl.compile.vscode`) routes through here.
+    """
+    output_root.mkdir(parents=True, exist_ok=True)
     compiled_text = _build_compiled_skill_md(ir, now=now)
     output_skill_md = output_root / "SKILL.md"
     output_skill_md.write_text(compiled_text)
-
     files_written: list[Path] = [output_skill_md]
     for sibling_name in _SIBLING_COPY_DIRS:
         src = ir.skill_root / sibling_name
@@ -78,13 +99,7 @@ def compile_skills_native(
             shutil.rmtree(dst)
         shutil.copytree(src, dst)
         files_written.extend(sorted(p for p in dst.rglob("*") if p.is_file()))
-
-    return CompileResult(
-        skill_name=ir.name,
-        platform_id=platform_id,
-        output_root=output_root,
-        files_written=files_written,
-    )
+    return files_written
 
 
 # ---------------------------------------------------------------------------
